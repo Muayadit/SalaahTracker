@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.mindrot.jbcrypt.BCrypt;
@@ -47,7 +48,7 @@ public void initializeDatabase(){
             Statement stmt = conn.createStatement()) {
 
         
-        stmt.execute(createUsersTable);
+        stmt.execute(createUserTable);
         stmt.execute(createPrayerLogTable);
 
     } catch (SQLException e) {
@@ -58,6 +59,22 @@ public void initializeDatabase(){
 
  //////////////////////////////////////////// USER MANAGEMENT METHODS /////////////////////////////////////////////////////////////
 
+ public User searchUser(String username) {
+    String sql = "SELECT * FROM users WHERE username = ?";
+    try (Connection conn = this.connect();
+         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        pstmt.setString(1, username);
+        ResultSet rs = pstmt.executeQuery();
+        if (rs.next()) {
+            // User found, return a User object
+            return new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
+        }
+    } catch (SQLException e) {
+        System.out.println(e.getMessage());
+    }
+    // User not found
+    return null;
+ }
 
  public void registerUser(String username, String password){
     String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
@@ -103,20 +120,74 @@ public void initializeDatabase(){
 
  public List<PrayerLog> getPrayersForToday(int userId, LocalDate date){
     List<PrayerLog> todayPrayers = new ArrayList<>();
-    int checkNumOfPrayersAvailable = "SELECT COUNT(*) FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
+    String dateString = date.toString();
+
+    String checkNumOfPrayersAvailable = "SELECT COUNT(*) AS count FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
     try (Connection conn = this.connect();
          PreparedStatement pstmt = conn.prepareStatement(checkNumOfPrayersAvailable)){
             pstmt.setInt(1, userId);
+            pstmt.setString(2, dateString);
 
-            LocalDate todayDate = LocalDate.now();
-            pstmt.setString(2, todayDate);
+            ResultSet rs = pstmt.executeQuery();
+
+            if(rs.next() && rs.getInt("count") == 0){
+                List<String> the5Prayers = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
+                String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0);";
+                try (PreparedStatement instmt = conn.prepareStatement(insertPrayers)){
+                    for (String prayer : the5Prayers) {
+                        instmt.setInt(1, userId);
+                        instmt.setString(2, prayer);
+                        instmt.setString(3, dateString);
+                        instmt.executeUpdate();
+                    }
+                    
+                } 
+            }
         
-    } catch (Exception e) {
-        // TODO: handle exception
+    } catch (SQLException e) {
+        System.out.println("Error checking/creating daily prayers: " + e.getMessage());
+        return todayPrayers;
     }
-    if(checkNumOfPrayersAvailable == 0){
-        list<String> the5Prayers = List.of("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
-        String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0)"
+
+    /////////////////
+    
+    String fetchPrayers = "SELECT * FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
+    try (Connection conn = this.connect();
+         PreparedStatement fetchstmt = conn.prepareStatement(fetchPrayers)){
+
+            fetchstmt.setInt(1, userId);
+            fetchstmt.setString(2, dateString);
+            ResultSet rs = fetchstmt.executeQuery();
+
+            while (rs.next()) {
+                PrayerLog prayerlog = new PrayerLog();
+                prayerlog.setId(rs.getInt("id"));
+                prayerlog.setUserId(rs.getInt("user_id"));
+                prayerlog.setPrayerName(rs.getString("prayer_name"));
+                prayerlog.setPrayerDate(LocalDate.parse(rs.getString("prayer_date")));
+                prayerlog.setCompleted(rs.getInt("is_completed") == 1);
+                todayPrayers.add(prayerlog);
+            }
+        
+    } catch (SQLException e) {
+        System.out.println("Coudn't fetch for today's prayers: " + e.getMessage());
+    }
+
+    return todayPrayers;
+ }
+
+
+
+ public void markPrayerAsCompleted(int prayerLogId, int userId){
+    String updateCompletion = "UPDATE prayer_log SET is_completed = 1 WHERE id = ? AND user_id = ?";
+    try (Connection conn = this.connect();
+         PreparedStatement updstmt = conn.prepareStatement(updateCompletion)){
+            updstmt.setInt(1, prayerLogId);
+            updstmt.setInt(2, userId);
+            updstmt.executeUpdate();
+        
+    } catch (SQLException e) {
+        System.out.println(e.getMessage());
     }
  }
 
