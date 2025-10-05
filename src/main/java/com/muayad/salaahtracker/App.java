@@ -4,6 +4,10 @@ import java.io.Console;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.ArrayList;
 
 public class App {
     public static void main(String[] args) {
@@ -107,7 +111,8 @@ public class App {
             System.out.println("3. Mark Asr as complete");
             System.out.println("4. Mark Maghrib as complete");
             System.out.println("5. Mark Isha as complete");
-            System.out.println("6. Logout");
+            System.out.println("6. View Monthly Summary");
+            System.out.println("7. Logout");
             System.out.println();
 
             System.out.print("Enter your choice: ");
@@ -121,6 +126,47 @@ public class App {
                 dbManager.markPrayerAsCompleted(prayerToUpdate.getId(), currentUser.getId());
                 System.out.println("'" + prayerToUpdate.getPrayerName() + "' marked as complete!");
             } else if (choice == 6) {
+                System.out.println("---Monthly Summary---");
+                System.out.print("First please input the year(e.g. 2025): ");
+                int year = input.nextInt();
+                input.nextLine();
+
+                System.out.print("Now please input the month(1-12): ");
+                int month = input.nextInt();
+                input.nextLine();
+
+                List<PrayerLog>monthlyPrayers = dbManager.getPrayersForMonth(currentUser.getId(), year, month);
+
+                if(monthlyPrayers.isEmpty()){
+                    System.out.println("No data found for that month.");
+                }else{
+                    Map<LocalDate, List<PrayerLog>> prayersByDay = new HashMap<>();
+                    for (PrayerLog p : monthlyPrayers) {
+                        prayersByDay.computeIfAbsent(p.getPrayerDate(), date -> new ArrayList<>()).add(p);
+                    }
+
+                    System.out.println("\n --- Summary for " + year + "-" + String.format("%02d", month) + " ---");
+                    List<LocalDate> sortedDays = new ArrayList<>(prayersByDay.keySet());
+                    Collections.sort(sortedDays);
+
+                    for(LocalDate day : sortedDays){
+                        List<PrayerLog> prayersForDay = prayersByDay.get(day);
+                        long completeCount = prayersForDay.stream().filter(PrayerLog::isCompleted).count();
+
+                        String status;
+                        if(completeCount == 5){
+                            status = "   All Complete   ";
+                        } else if(completeCount == 0){
+                            status = "   None   ";
+                        } else{
+                            status = "   Partial   ";
+                        }
+                        System.out.printf("%s --- [%s] --- (%d/5) prayers completed.\n", day, status, completeCount);
+                    }
+                }
+
+
+            } else if (choice == 7){
                 System.out.println("\nLogging out. Goodbye, " + currentUser.getUsername() + "!");
                 break; // Exit the main application loop
             } else {

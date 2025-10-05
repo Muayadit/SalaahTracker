@@ -192,6 +192,43 @@ public void initializeDatabase(){
  }
 
 
+  //////////////////////////////////////////// MONTHLY VIEW METHODS /////////////////////////////////////////////////////////////
+  public List<PrayerLog> getPrayersForMonth(int userid, int year, int month){
+    List<PrayerLog> monthlyPrayers = new ArrayList<>();
+
+    String datePattern = String.format("%d-%02d-%%", year, month);
+
+    String fetchMonthlyPrayers = "SELECT * FROM prayer_log WHERE user_id = ? AND prayer_date LIKE ? ORDER BY prayer_date";
+
+    try (Connection conn = this.connect();
+        PreparedStatement fetchMonthlystmt = conn.prepareStatement(fetchMonthlyPrayers)){
+
+            fetchMonthlystmt.setInt(1, userid);
+            fetchMonthlystmt.setString(2, datePattern);
+            ResultSet rs = fetchMonthlystmt.executeQuery();
+
+            while(rs.next()){
+                PrayerLog prayerLog = new PrayerLog();
+                prayerLog.setId(rs.getInt("id"));
+                prayerLog.setUserId(rs.getInt("user_id"));
+                prayerLog.setPrayerName(rs.getString("prayer_name"));
+                prayerLog.setPrayerDate(LocalDate.parse(rs.getString("prayer_date")));
+                prayerLog.setCompleted(rs.getInt("is_completed") == 1);
+                monthlyPrayers.add(prayerLog);
+            }
+
+        
+        
+    } catch (SQLException e) {
+        System.out.println("Couldn't fetch prayers for the month: " + e.getMessage());
+    }
+
+
+
+
+    return monthlyPrayers;
+  }
+
 
 
 }
