@@ -66,3 +66,23 @@ button:hover {
 .hidden {
     display: none;
 }
+
+.prayer-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    background: #fafafa;
+}
+
+.prayer-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 12px;
+}
+
+.prayer-item span {
+    font-size: 18px;
+}
