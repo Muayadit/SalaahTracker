@@ -86,3 +86,47 @@ button:hover {
 .prayer-item span {
     font-size: 18px;
 }
+
+#summary-container {
+    width: 500px;
+}
+
+#back-to-prayers-button {
+    background: #6c757d;
+    width: auto;
+    padding: 8px 12px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+#back-to-prayers-button:hover {
+    background: #5a6268;
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.form-row select {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+#summary-results {
+    margin-top: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.summary-day-item {
+    background: #fafafa;
+    border: 1px solid #eee;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}

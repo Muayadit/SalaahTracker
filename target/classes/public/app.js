@@ -20,6 +20,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const logoutButton = document.getElementById("logout-button");
 
+    const viewSummaryButton = document.getElementById("view-summary-button");
+    const summaryContainer = document.getElementById("summary-container");
+    const backToPrayersButton = document.getElementById("back-to-prayers-button");
+    const summaryForm = document.getElementById("summary-form");
+    const summaryMonth = document.getElementById("summary-month");
+    const summaryYear = document.getElementById("summary-year");
+    const summaryResults = document.getElementById("summary-results");
+
 
     // --- FUNCTION TO LOAD PRAYERS ---
 function loadPrayers() {
@@ -113,6 +121,110 @@ function loadPrayers() {
             prayerList.textContent = "Could not load prayers.";
         });
 }
+
+viewSummaryButton.addEventListener("click", () => {
+        // Hide the main app, show the summary
+        appContainer.classList.add("hidden");
+        summaryContainer.classList.remove("hidden");
+        
+        // Let's also populate the year dropdown
+        populateYearDropdown();
+    });
+
+    backToPrayersButton.addEventListener("click", () => {
+        // Hide the summary, show the main app
+        summaryContainer.classList.add("hidden");
+        appContainer.classList.remove("hidden");
+        
+        // Refresh the prayer list just in case
+        loadPrayers();
+    });
+
+    // This helper function fills the year dropdown
+    function populateYearDropdown() {
+        summaryYear.innerHTML = ""; // Clear it
+        const currentYear = new Date().getFullYear();
+        for (let i = currentYear; i >= currentYear - 5; i--) {
+            const option = document.createElement("option");
+            option.value = i;
+            option.textContent = i;
+            summaryYear.appendChild(option);
+        }
+    }
+
+    summaryForm.addEventListener("submit", (event) => {
+        event.preventDefault(); // Stop page reload
+
+        const year = summaryYear.value;
+        const month = summaryMonth.value;
+
+        // Show a loading message
+        summaryResults.innerHTML = "<p>Loading summary...</p>";
+
+        // 1. Fetch the data from our new Java endpoint
+        fetch(`/api/summary/monthly?year=${year}&month=${month}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Could not load summary.");
+                }
+                return response.json();
+            })
+            .then(prayers => {
+                // 2. Process the data (just like your console app!)
+                if (prayers.length === 0) {
+                    summaryResults.innerHTML = "<p>No data found for this month.</p>";
+                    return;
+                }
+
+                // This object will hold our grouped data
+                // e.g., { "2025-11-01": { completed: 2, total: 5 }, ... }
+                const prayersByDay = {};
+
+                prayers.forEach(p => {
+                    const date = p.prayerDate;
+                    
+                    // If we haven't seen this day yet, create it
+                    if (!prayersByDay[date]) {
+                        prayersByDay[date] = { completed: 0, total: 0 };
+                    }
+                    
+                    prayersByDay[date].total++; // Increment total
+                    if (p.completed) {
+                        prayersByDay[date].completed++; // Increment completed
+                    }
+                });
+
+                // 3. Display the processed data
+                summaryResults.innerHTML = ""; // Clear the "Loading..."
+                
+                // Get all the dates, sort them, and create HTML
+                const sortedDays = Object.keys(prayersByDay).sort();
+
+                sortedDays.forEach(day => {
+                    const data = prayersByDay[day];
+                    const dayElement = document.createElement("div");
+                    dayElement.classList.add("summary-day-item");
+                    
+                    let status = "Partial";
+                    if (data.completed === data.total) {
+                        status = "All Complete";
+                    } else if (data.completed === 0) {
+                        status = "None";
+                    }
+
+                    dayElement.innerHTML = `
+                        <strong>${day}</strong> 
+                        --- [${status}] --- 
+                        (${data.completed}/${data.total}) prayers
+                    `;
+                    summaryResults.appendChild(dayElement);
+                });
+
+            })
+            .catch(error => {
+                summaryResults.innerHTML = `<p class="error-message">${error.message}</p>`;
+            });
+    });
 
     
 

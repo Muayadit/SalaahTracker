@@ -73,27 +73,10 @@ public class App {
             List<PrayerLog> todayPrayers = dbManager.getPrayersForToday(currentUser.getId(), LocalDate.now());
 
             // Manually build the JSON Array
-            StringBuilder jsonArray = new StringBuilder();
-            jsonArray.append("[");
-            
-            for (int i = 0; i < todayPrayers.size(); i++) {
-                PrayerLog p = todayPrayers.get(i);
-                
-                jsonArray.append("{");
-                jsonArray.append("\"id\":").append(p.getId()).append(",");
-                jsonArray.append("\"prayerName\":\"").append(p.getPrayerName()).append("\",");
-                jsonArray.append("\"prayerDate\":\"").append(p.getPrayerDate().toString()).append("\",");
-                jsonArray.append("\"completed\":").append(p.isCompleted());
-                jsonArray.append("}"); 
-                
-                if (i < todayPrayers.size() - 1) {
-                    jsonArray.append(",");
-                }
-            }
-            
-            jsonArray.append("]");
-            
-            ctx.result(jsonArray.toString());
+            // 3. SEND THE PRAYER LIST BACK AS JSON
+            // We use our new helper function!
+            String jsonResult = serializePrayerList(todayPrayers);
+            ctx.result(jsonResult);
             ctx.contentType("application/json");
         });
 
@@ -143,10 +126,63 @@ public class App {
             ctx.contentType("application/json");
         });
 
+        app.get("/api/summary/monthly", ctx -> {
+            User currentUser = ctx.sessionAttribute("currentUser");
+
+            if (currentUser == null) {
+                ctx.status(403); // Forbidden
+                ctx.result("{\"status\":\"failure\", \"message\":\"You must be logged in\"}");
+                ctx.contentType("application/json");
+                return;
+            }
+
+            try {
+                // 1. Get parameters from the URL (e.g., ?year=2025&month=11)
+                int year = Integer.parseInt(ctx.queryParam("year"));
+                int month = Integer.parseInt(ctx.queryParam("month"));
+
+                // 2. USE YOUR EXISTING DATABASEMANAGER METHOD!
+                List<PrayerLog> monthlyPrayers = dbManager.getPrayersForMonth(currentUser.getId(), year, month);
+
+                // 3. USE OUR NEW HELPER FUNCTION!
+                String jsonResult = serializePrayerList(monthlyPrayers);
+                ctx.result(jsonResult);
+                ctx.contentType("application/json");
+
+            } catch (NumberFormatException e) {
+                // This happens if 'year' or 'month' are not valid numbers
+                ctx.status(400); // Bad Request
+                ctx.result("{\"status\":\"failure\", \"message\":\"Invalid year or month\"}");
+                ctx.contentType("application/json");
+            }
+        });
 
         System.out.println("========================================");
         System.out.println("Salaah Tracker Web Server Started!");
         System.out.println("Go to http://localhost:7070 in a browser.");
         System.out.println("========================================");
+    }
+
+    private static String serializePrayerList(List<PrayerLog> prayers) {
+        StringBuilder jsonArray = new StringBuilder();
+        jsonArray.append("[");
+        
+        for (int i = 0; i < prayers.size(); i++) {
+            PrayerLog p = prayers.get(i);
+            
+            jsonArray.append("{");
+            jsonArray.append("\"id\":").append(p.getId()).append(",");
+            jsonArray.append("\"prayerName\":\"").append(p.getPrayerName()).append("\",");
+            jsonArray.append("\"prayerDate\":\"").append(p.getPrayerDate().toString()).append("\",");
+            jsonArray.append("\"completed\":").append(p.isCompleted());
+            jsonArray.append("}"); 
+            
+            if (i < prayers.size() - 1) {
+                jsonArray.append(",");
+            }
+        }
+        
+        jsonArray.append("]");
+        return jsonArray.toString();
     }
 }

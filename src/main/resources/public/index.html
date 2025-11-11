@@ -33,10 +33,48 @@
     <div id="app-container" class="hidden">
         <h2 id="welcome-message"></h2>
         <button id="logout-button">Logout</button>
+        <button id="view-summary-button">View Monthly Summary</button>
         <hr>
+
+        
         
         <h3>Your Prayers for Today</h3>
         <div id="prayer-list"></div>
+    </div>
+
+
+    <div id="summary-container" class="hidden">
+        <button id="back-to-prayers-button">&larr; Back to Today</button>
+        <h2>Monthly Summary</h2>
+
+        <!-- This form lets the user pick a month and year -->
+        <form id="summary-form">
+            <div class="form-row">
+                <select id="summary-month" required>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+                <select id="summary-year" required>
+                    <!-- We will fill this in with JavaScript -->
+                </select>
+            </div>
+            <button type="submit">Get Summary</button>
+        </form>
+
+        <!-- The results will be injected here by JavaScript -->
+        <div id="summary-results">
+            <p>Please select a month and year.</p>
+        </div>
     </div>
 
 
