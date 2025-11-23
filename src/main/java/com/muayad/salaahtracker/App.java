@@ -2,54 +2,40 @@ package com.muayad.salaahtracker;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Collections;
-import java.util.ArrayList;
-
-// These are the only Javalin imports we need.
 import io.javalin.Javalin;
-import io.javalin.http.staticfiles.Location;
 
 public class App {
     public static void main(String[] args) {
         DatabaseManager dbManager = new DatabaseManager();
         dbManager.initializeDatabase();
 
-        // Create the Javalin app (simple version)
         var app = Javalin.create(config -> {
-            // Tell Javalin where our HTML/CSS files are
             config.staticFiles.add("public");
         }).start(7070);
 
-        // --- /api/login endpoint (Manual JSON) ---
         app.post("/api/login", ctx -> {
             String username = ctx.formParam("username");
             String password = ctx.formParam("password");
-
             User loggedInUser = dbManager.loginUser(username, password);
 
             if (loggedInUser != null) {
                 ctx.sessionAttribute("currentUser", loggedInUser);
-                // Manually build JSON and set content type
                 ctx.result("{\"status\":\"success\", \"username\":\"" + loggedInUser.getUsername() + "\"}");
                 ctx.contentType("application/json"); 
             } else {
                 ctx.status(401);
-                // Manually build JSON and set content type
                 ctx.result("{\"status\":\"failure\", \"message\":\"Wrong username or password\"}");
                 ctx.contentType("application/json");
             }
         });
 
-        // --- /api/register endpoint (Manual JSON) ---
         app.post("/api/register", ctx -> {
             String username = ctx.formParam("username");
             String password = ctx.formParam("password");
             User existingUser = dbManager.searchUser(username);
 
             if (existingUser != null) {
-                ctx.status(409); // Conflict
+                ctx.status(409);
                 ctx.result("{\"status\":\"failure\", \"message\":\"Username is already taken\"}");
                 ctx.contentType("application/json");
             } else {
@@ -59,22 +45,15 @@ public class App {
             }
         });
 
-        // --- /api/prayers/today endpoint (Manual JSON) ---
         app.get("/api/prayers/today", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
-
             if (currentUser == null) {
-                ctx.status(403); // Forbidden
+                ctx.status(403);
                 ctx.result("{\"status\":\"failure\", \"message\":\"You must be logged in\"}");
                 ctx.contentType("application/json");
                 return;
             }
-
             List<PrayerLog> todayPrayers = dbManager.getPrayersForToday(currentUser.getId(), LocalDate.now());
-
-            // Manually build the JSON Array
-            // 3. SEND THE PRAYER LIST BACK AS JSON
-            // We use our new helper function!
             String jsonResult = serializePrayerList(todayPrayers);
             ctx.result(jsonResult);
             ctx.contentType("application/json");
@@ -82,79 +61,74 @@ public class App {
 
         app.put("/api/prayers/complete/{id}", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
-
             if (currentUser == null) {
-                ctx.status(403); // Forbidden
+                ctx.status(403);
                 ctx.result("{\"status\":\"failure\", \"message\":\"You must be logged in\"}");
                 ctx.contentType("application/json");
                 return;
             }
-
             try {
-                // 1. Get the ID from the URL (it's a String)
-                String idString = ctx.pathParam("id");
-                
-                // 2. Convert it to an integer
-                int prayerLogId = Integer.parseInt(idString);
-                
-                // 3. Get the user's ID
+                int prayerLogId = Integer.parseInt(ctx.pathParam("id"));
                 int userId = currentUser.getId();
-
-                // 4. USE YOUR EXISTING DATABASEMANAGER METHOD!
-                // This is the beautiful part. The logic was already written.
                 dbManager.markPrayerAsCompleted(prayerLogId, userId);
-
-                // 5. Send a simple success response
                 ctx.result("{\"status\":\"success\", \"message\":\"Prayer marked as complete\"}");
                 ctx.contentType("application/json");
-
             } catch (NumberFormatException e) {
-                // This happens if the ID in the URL is not a number
-                ctx.status(400); // Bad Request
+                ctx.status(400);
                 ctx.result("{\"status\":\"failure\", \"message\":\"Invalid Prayer ID\"}");
                 ctx.contentType("application/json");
             }
         });
 
-        app.post("/api/logout", ctx -> {
-            
-            // This invalidates the entire session, forgetting the user.
-            ctx.req().getSession().invalidate();
-            
-            // Send a success response
-            ctx.result("{\"status\":\"success\", \"message\":\"Logged out successfully\"}");
-            ctx.contentType("application/json");
-        });
-
         app.get("/api/summary/monthly", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
-
             if (currentUser == null) {
-                ctx.status(403); // Forbidden
+                ctx.status(403); 
                 ctx.result("{\"status\":\"failure\", \"message\":\"You must be logged in\"}");
                 ctx.contentType("application/json");
                 return;
             }
-
             try {
-                // 1. Get parameters from the URL (e.g., ?year=2025&month=11)
                 int year = Integer.parseInt(ctx.queryParam("year"));
                 int month = Integer.parseInt(ctx.queryParam("month"));
-
-                // 2. USE YOUR EXISTING DATABASEMANAGER METHOD!
                 List<PrayerLog> monthlyPrayers = dbManager.getPrayersForMonth(currentUser.getId(), year, month);
-
-                // 3. USE OUR NEW HELPER FUNCTION!
                 String jsonResult = serializePrayerList(monthlyPrayers);
                 ctx.result(jsonResult);
                 ctx.contentType("application/json");
-
             } catch (NumberFormatException e) {
-                // This happens if 'year' or 'month' are not valid numbers
-                ctx.status(400); // Bad Request
+                ctx.status(400); 
                 ctx.result("{\"status\":\"failure\", \"message\":\"Invalid year or month\"}");
                 ctx.contentType("application/json");
             }
+        });
+
+        app.get("/api/summary/weekly", ctx -> {
+            User currentUser = ctx.sessionAttribute("currentUser");
+            if (currentUser == null) {
+                ctx.status(403);
+                ctx.result("{\"status\":\"failure\", \"message\":\"You must be logged in\"}");
+                ctx.contentType("application/json");
+                return;
+            }
+            try {
+                String startParam = ctx.queryParam("start");
+                LocalDate startDate = LocalDate.parse(startParam);
+                LocalDate endDate = startDate.plusDays(6);
+                List<PrayerLog> weeklyPrayers = dbManager.getPrayersBetweenDates(currentUser.getId(), startDate, endDate);
+                String jsonResult = serializePrayerList(weeklyPrayers);
+                ctx.result(jsonResult);
+                ctx.contentType("application/json");
+            } catch (Exception e) {
+                ctx.status(400);
+                ctx.result("{\"status\":\"failure\", \"message\":\"Invalid date format\"}");
+                ctx.contentType("application/json");
+            }
+        });
+
+        app.post("/api/logout", ctx -> {
+            ctx.req().getSession().invalidate();
+            ctx.result("{\"status\":\"success\", \"message\":\"Logged out successfully\"}");
+            ctx.contentType("application/json");
         });
 
         System.out.println("========================================");
@@ -166,22 +140,18 @@ public class App {
     private static String serializePrayerList(List<PrayerLog> prayers) {
         StringBuilder jsonArray = new StringBuilder();
         jsonArray.append("[");
-        
         for (int i = 0; i < prayers.size(); i++) {
             PrayerLog p = prayers.get(i);
-            
             jsonArray.append("{");
             jsonArray.append("\"id\":").append(p.getId()).append(",");
             jsonArray.append("\"prayerName\":\"").append(p.getPrayerName()).append("\",");
             jsonArray.append("\"prayerDate\":\"").append(p.getPrayerDate().toString()).append("\",");
             jsonArray.append("\"completed\":").append(p.isCompleted());
             jsonArray.append("}"); 
-            
             if (i < prayers.size() - 1) {
                 jsonArray.append(",");
             }
         }
-        
         jsonArray.append("]");
         return jsonArray.toString();
     }

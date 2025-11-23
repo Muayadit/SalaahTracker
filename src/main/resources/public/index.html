@@ -34,20 +34,19 @@
         <h2 id="welcome-message"></h2>
         <button id="logout-button">Logout</button>
         <button id="view-summary-button">View Monthly Summary</button>
-        <hr>
-
+        <button id="view-weekly-button">View Weekly Summary</button>
         
+        <hr>
         
         <h3>Your Prayers for Today</h3>
         <div id="prayer-list"></div>
     </div>
 
-
+    <!-- MONTHLY SUMMARY CONTAINER -->
     <div id="summary-container" class="hidden">
         <button id="back-to-prayers-button">&larr; Back to Today</button>
         <h2>Monthly Summary</h2>
 
-        <!-- This form lets the user pick a month and year -->
         <form id="summary-form">
             <div class="form-row">
                 <select id="summary-month" required>
@@ -65,18 +64,28 @@
                     <option value="12">December</option>
                 </select>
                 <select id="summary-year" required>
-                    <!-- We will fill this in with JavaScript -->
                 </select>
             </div>
             <button type="submit">Get Summary</button>
         </form>
 
-        <!-- The results will be injected here by JavaScript -->
-        <div id="summary-results">
-            <p>Please select a month and year.</p>
-        </div>
+        <div id="summary-results"></div>
     </div>
 
+    <!-- WEEKLY SUMMARY CONTAINER (UPDATED) -->
+    <div id="weekly-container" class="hidden">
+        <button id="back-from-weekly-button">&larr; Back to Today</button>
+        <h2>Weekly Summary</h2>
+
+        <!-- New Navigation Bar -->
+        <div class="week-nav">
+            <button id="prev-week-btn">&larr; Prev</button>
+            <span id="current-week-label">Loading...</span>
+            <button id="next-week-btn">Next &rarr;</button>
+        </div>
+
+        <div id="weekly-results"></div>
+    </div>
 
     <script src="app.js"></script>
 </body>

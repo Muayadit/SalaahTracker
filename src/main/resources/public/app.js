@@ -1,7 +1,6 @@
-// This waits for the HTML page to be fully loaded before running any JS
 document.addEventListener("DOMContentLoaded", () => {
 
-    // Get all the important HTML elements
+    // --- ELEMENTS ---
     const loginForm = document.getElementById("login-form");
     const loginUsername = document.getElementById("login-username");
     const loginPassword = document.getElementById("login-password");
@@ -17,9 +16,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const registerMessage = document.getElementById("register-message");
 
     const prayerList = document.getElementById("prayer-list");
-
     const logoutButton = document.getElementById("logout-button");
 
+    // Monthly Elements
     const viewSummaryButton = document.getElementById("view-summary-button");
     const summaryContainer = document.getElementById("summary-container");
     const backToPrayersButton = document.getElementById("back-to-prayers-button");
@@ -28,121 +27,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const summaryYear = document.getElementById("summary-year");
     const summaryResults = document.getElementById("summary-results");
 
+    // Weekly Elements
+    const viewWeeklyButton = document.getElementById("view-weekly-button");
+    const weeklyContainer = document.getElementById("weekly-container");
+    const backFromWeeklyButton = document.getElementById("back-from-weekly-button");
+    const weeklyResults = document.getElementById("weekly-results");
+    
+    // NEW WEEKLY NAV ELEMENTS
+    const prevWeekBtn = document.getElementById("prev-week-btn");
+    const nextWeekBtn = document.getElementById("next-week-btn");
+    const currentWeekLabel = document.getElementById("current-week-label");
 
-    // --- FUNCTION TO LOAD PRAYERS ---
-function loadPrayers() {
-    // Clear any old prayers
-    prayerList.innerHTML = "";
+    // STATE VARIABLE FOR WEEKLY VIEW
+    let currentWeeklyStartDate = new Date();
 
-    // 1. Fetch data from our new Java endpoint
-    fetch("/api/prayers/today")
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Could not get prayer list. Are you logged in?");
-            }
-            return response.json();
-        })
-        .then(prayers => {
-            // 'prayers' is now a JSON array from our server
-            // [ { "id": 1, "prayerName": "Fajr", "completed": false }, ... ]
 
-            // 2. Loop through each prayer and create HTML for it
-            prayers.forEach(prayer => {
-                // Create a new div for the prayer
-                const prayerElement = document.createElement("div");
-                prayerElement.classList.add("prayer-item");
+    // --- SHARED FUNCTIONS ---
 
-                // Create the text
-                const prayerName = document.createElement("span");
-                prayerName.textContent = prayer.prayerName;
-                
-                // Create the checkbox
-                const checkbox = document.createElement("input");
-                checkbox.type = "checkbox";
-                checkbox.checked = prayer.completed;
-
-                // --- THIS IS THE NEW CODE ---
-                
-                // A. Store the prayer's ID directly on the checkbox
-                //    so we know which one to update
-                checkbox.dataset.prayerId = prayer.id;
-
-                // B. Disable the checkbox if it's already completed
-                if (prayer.completed) {
-                    checkbox.disabled = true;
-                }
-
-                // C. Add a 'change' event listener (fires on click)
-                checkbox.addEventListener('change', () => {
-                    // Only run this if we are CHECKING the box
-                    if (checkbox.checked) {
-                        const prayerId = checkbox.dataset.prayerId;
-
-                        // Disable the box immediately so you can't click it twice
-                        checkbox.disabled = true;
-
-                        // Send the update to our new Java endpoint!
-                        fetch("/api/prayers/complete/" + prayerId, {
-                            method: "PUT"
-                        })
-                        .then(response => {
-                            if (!response.ok) {
-                                // If the server sends an error, throw it
-                                throw new Error("Server-side update failed");
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            // The server said success!
-                            console.log("Prayer update success:", data.message);
-                            // The checkbox is already checked and disabled,
-                            // so we don't need to do anything else.
-                        })
-                        .catch(error => {
-                            // If the update failed, log it and re-enable the box
-                            console.error("Prayer update failed:", error);
-                            checkbox.disabled = false;
-                            checkbox.checked = false; // Uncheck it
-                        });
-                    }
-                });
-                // --- END OF NEW CODE ---
-
-                // Add the checkbox and text to the prayer div
-                prayerElement.appendChild(checkbox);
-                prayerElement.appendChild(prayerName);
-
-                // Add the new prayer div to the main list
-                prayerList.appendChild(prayerElement);
-            });
-        })
-        .catch(error => {
-            console.error("Error loading prayers:", error);
-            prayerList.textContent = "Could not load prayers.";
-        });
-}
-
-viewSummaryButton.addEventListener("click", () => {
-        // Hide the main app, show the summary
-        appContainer.classList.add("hidden");
-        summaryContainer.classList.remove("hidden");
-        
-        // Let's also populate the year dropdown
-        populateYearDropdown();
-    });
-
-    backToPrayersButton.addEventListener("click", () => {
-        // Hide the summary, show the main app
-        summaryContainer.classList.add("hidden");
-        appContainer.classList.remove("hidden");
-        
-        // Refresh the prayer list just in case
-        loadPrayers();
-    });
-
-    // This helper function fills the year dropdown
     function populateYearDropdown() {
-        summaryYear.innerHTML = ""; // Clear it
+        summaryYear.innerHTML = ""; 
         const currentYear = new Date().getFullYear();
         for (let i = currentYear; i >= currentYear - 5; i--) {
             const option = document.createElement("option");
@@ -152,179 +55,249 @@ viewSummaryButton.addEventListener("click", () => {
         }
     }
 
-    summaryForm.addEventListener("submit", (event) => {
-        event.preventDefault(); // Stop page reload
-
-        const year = summaryYear.value;
-        const month = summaryMonth.value;
-
-        // Show a loading message
-        summaryResults.innerHTML = "<p>Loading summary...</p>";
-
-        // 1. Fetch the data from our new Java endpoint
-        fetch(`/api/summary/monthly?year=${year}&month=${month}`)
+    function loadPrayers() {
+        prayerList.innerHTML = "";
+        fetch("/api/prayers/today")
             .then(response => {
-                if (!response.ok) {
-                    throw new Error("Could not load summary.");
-                }
+                if (!response.ok) throw new Error("Could not get prayer list.");
                 return response.json();
             })
             .then(prayers => {
-                // 2. Process the data (just like your console app!)
-                if (prayers.length === 0) {
-                    summaryResults.innerHTML = "<p>No data found for this month.</p>";
-                    return;
-                }
+                prayers.forEach(prayer => {
+                    const prayerElement = document.createElement("div");
+                    prayerElement.classList.add("prayer-item");
 
-                // This object will hold our grouped data
-                // e.g., { "2025-11-01": { completed: 2, total: 5 }, ... }
-                const prayersByDay = {};
+                    const prayerName = document.createElement("span");
+                    prayerName.textContent = prayer.prayerName;
+                    
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.checked = prayer.completed;
+                    checkbox.dataset.prayerId = prayer.id;
 
-                prayers.forEach(p => {
-                    const date = p.prayerDate;
-                    
-                    // If we haven't seen this day yet, create it
-                    if (!prayersByDay[date]) {
-                        prayersByDay[date] = { completed: 0, total: 0 };
+                    if (prayer.completed) {
+                        checkbox.disabled = true;
                     }
-                    
-                    prayersByDay[date].total++; // Increment total
-                    if (p.completed) {
-                        prayersByDay[date].completed++; // Increment completed
-                    }
+
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            const prayerId = checkbox.dataset.prayerId;
+                            checkbox.disabled = true;
+                            fetch("/api/prayers/complete/" + prayerId, { method: "PUT" })
+                            .then(response => {
+                                if (!response.ok) throw new Error("Update failed");
+                                return response.json();
+                            })
+                            .then(data => console.log("Success:", data.message))
+                            .catch(err => {
+                                console.error(err);
+                                checkbox.disabled = false;
+                                checkbox.checked = false;
+                            });
+                        }
+                    });
+
+                    prayerElement.appendChild(checkbox);
+                    prayerElement.appendChild(prayerName);
+                    prayerList.appendChild(prayerElement);
                 });
-
-                // 3. Display the processed data
-                summaryResults.innerHTML = ""; // Clear the "Loading..."
-                
-                // Get all the dates, sort them, and create HTML
-                const sortedDays = Object.keys(prayersByDay).sort();
-
-                sortedDays.forEach(day => {
-                    const data = prayersByDay[day];
-                    const dayElement = document.createElement("div");
-                    dayElement.classList.add("summary-day-item");
-                    
-                    let status = "Partial";
-                    if (data.completed === data.total) {
-                        status = "All Complete";
-                    } else if (data.completed === 0) {
-                        status = "None";
-                    }
-
-                    dayElement.innerHTML = `
-                        <strong>${day}</strong> 
-                        --- [${status}] --- 
-                        (${data.completed}/${data.total}) prayers
-                    `;
-                    summaryResults.appendChild(dayElement);
-                });
-
             })
             .catch(error => {
-                summaryResults.innerHTML = `<p class="error-message">${error.message}</p>`;
+                console.error(error);
+                prayerList.textContent = "Could not load prayers.";
             });
+    }
+
+    function displaySummaryData(prayers, container) {
+        if (prayers.length === 0) {
+            container.innerHTML = "<p>No data found for this period.</p>";
+            return;
+        }
+
+        const prayersByDay = {};
+        prayers.forEach(p => {
+            const date = p.prayerDate;
+            if (!prayersByDay[date]) {
+                prayersByDay[date] = { completed: 0, total: 0 };
+            }
+            prayersByDay[date].total++;
+            if (p.completed) {
+                prayersByDay[date].completed++;
+            }
+        });
+
+        container.innerHTML = ""; 
+        const sortedDays = Object.keys(prayersByDay).sort();
+
+        sortedDays.forEach(day => {
+            const data = prayersByDay[day];
+            const dayElement = document.createElement("div");
+            dayElement.classList.add("summary-day-item");
+            
+            let status = "Partial";
+            if (data.completed === data.total) status = "All Complete";
+            else if (data.completed === 0) status = "None";
+
+            const [y, m, d] = day.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d);
+            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+
+            dayElement.innerHTML = `
+                <strong>${day} (${dayName})</strong> 
+                --- [${status}] --- 
+                (${data.completed}/${data.total}) prayers
+            `;
+            container.appendChild(dayElement);
+        });
+    }
+
+    function fetchMonthlySummary(year, month) {
+        summaryResults.innerHTML = "<p>Loading summary...</p>";
+        fetch(`/api/summary/monthly?year=${year}&month=${month}`)
+            .then(response => response.json())
+            .then(prayers => displaySummaryData(prayers, summaryResults))
+            .catch(error => {
+                summaryResults.innerHTML = `<p class="error-message">Error loading summary.</p>`;
+            });
+    }
+
+    // --- UPDATED WEEKLY LOGIC ---
+    
+    function formatDateForApi(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function formatDateForLabel(date) {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function updateWeeklyView() {
+        // 1. Calculate Start and End dates
+        const startDate = new Date(currentWeeklyStartDate);
+        const endDate = new Date(currentWeeklyStartDate);
+        endDate.setDate(startDate.getDate() + 6); // Add 6 days to get Saturday (Sunday-Saturday range)
+
+        // 2. Update Label
+        currentWeekLabel.textContent = `${formatDateForLabel(startDate)} - ${formatDateForLabel(endDate)}`;
+
+        // 3. Fetch Data
+        const apiDateParam = formatDateForApi(startDate);
+        weeklyResults.innerHTML = "<p>Loading...</p>";
+        
+        fetch(`/api/summary/weekly?start=${apiDateParam}`)
+            .then(response => response.json())
+            .then(prayers => displaySummaryData(prayers, weeklyResults))
+            .catch(error => {
+                weeklyResults.innerHTML = `<p class="error-message">Error loading data.</p>`;
+            });
+    }
+
+    // Helper to find the SUNDAY of the current week
+    function setToCurrentWeekSunday() {
+        const d = new Date();
+        const day = d.getDay(); // 0 is Sunday, 1 is Monday, etc.
+        // If today is Sunday (0), diff is 0. If Monday (1), diff is -1.
+        const diff = d.getDate() - day; 
+        currentWeeklyStartDate = new Date(d.setDate(diff));
+    }
+
+
+    // --- EVENT LISTENERS ---
+
+    viewSummaryButton.addEventListener("click", () => {
+        appContainer.classList.add("hidden");
+        weeklyContainer.classList.add("hidden");
+        summaryContainer.classList.remove("hidden");
+        
+        populateYearDropdown();
+        const now = new Date();
+        summaryYear.value = now.getFullYear();
+        summaryMonth.value = now.getMonth() + 1; 
+        fetchMonthlySummary(now.getFullYear(), now.getMonth() + 1);
     });
 
-    
+    // WEEKLY VIEW BUTTON - Initialize to current week (Sunday Start)
+    viewWeeklyButton.addEventListener("click", () => {
+        appContainer.classList.add("hidden");
+        summaryContainer.classList.add("hidden");
+        weeklyContainer.classList.remove("hidden");
 
-    // --- LOGIN ---
-    // Add an event listener to the login form
+        setToCurrentWeekSunday(); // Reset to this week's Sunday
+        updateWeeklyView(); // Fetch and Display
+    });
+
+    // PREV BUTTON - Go back 7 days
+    prevWeekBtn.addEventListener("click", () => {
+        currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() - 7);
+        updateWeeklyView();
+    });
+
+    // NEXT BUTTON - Go forward 7 days
+    nextWeekBtn.addEventListener("click", () => {
+        currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() + 7);
+        updateWeeklyView();
+    });
+
+    summaryForm.addEventListener("submit", (event) => {
+        event.preventDefault(); 
+        fetchMonthlySummary(summaryYear.value, summaryMonth.value);
+    });
+
+    backToPrayersButton.addEventListener("click", () => {
+        summaryContainer.classList.add("hidden");
+        appContainer.classList.remove("hidden");
+        loadPrayers();
+    });
+
+    backFromWeeklyButton.addEventListener("click", () => {
+        weeklyContainer.classList.add("hidden");
+        appContainer.classList.remove("hidden");
+        loadPrayers();
+    });
+
     loginForm.addEventListener("submit", (event) => {
-        // 1. Prevent the form from reloading the page (its default behavior)
         event.preventDefault();
-
-        // 2. Create an object with the data from the form
-        //    NOTE: The keys 'username' and 'password' *must* match
-        //    what your Java server expects (ctx.formParam("username"))
         const formData = new URLSearchParams();
         formData.append("username", loginUsername.value);
         formData.append("password", loginPassword.value);
 
-        // 3. Send the data to the Java server's '/api/login' endpoint
-        fetch("/api/login", {
-            method: "POST",
-            body: formData
-        })
+        fetch("/api/login", { method: "POST", body: formData })
         .then(response => {
-            // 4. Check if the server response is OK (status 200-299)
-            if (response.ok) {
-                return response.json(); // Server said success (200)
-            } else {
-                // Server said failure (like 401 Unauthorized)
-                return response.json().then(errorData => {
-                    // Throw an error to be caught by the .catch() block
-                    throw new Error(errorData.message);
-                });
-            }
+            if (response.ok) return response.json();
+            return response.json().then(err => { throw new Error(err.message); });
         })
         .then(data => {
-            // 5. We are here if the login was successful!
-            //    The 'data' object is the JSON from your Java server:
-            //    { status: "success", username: "muayad" }
-            
-            console.log("Login successful:", data);
-            
-            // Hide login form and show the main app
             authContainer.classList.add("hidden");
             appContainer.classList.remove("hidden");
             welcomeMessage.textContent = `Welcome, ${data.username}!`;
-            
-            // We'll add a function here later to load the prayers
             loadPrayers(); 
         })
         .catch(error => {
-            // 6. We are here if the fetch failed or if the server
-            //    sent a failure message (like "Wrong username or password")
-            console.error("Login failed:", error);
             loginMessage.textContent = error.message;
         });
     });
 
     registerForm.addEventListener("submit", (event) => {
-        // 1. Prevent the form from reloading the page
         event.preventDefault();
-
-        // 2. Create the data object
         const formData = new URLSearchParams();
         formData.append("username", registerUsername.value);
         formData.append("password", registerPassword.value);
 
-        // 3. Send the data to the new '/api/register' endpoint
-        fetch("/api/register", {
-            method: "POST",
-            body: formData
-        })
-        .then(response => {
-            // 4. Check the response
-            return response.json().then(data => {
-                if (!response.ok) {
-                    // If response is not ok (like 409 Conflict), throw an error
-                    throw new Error(data.message);
-                }
-                return data; // This is the success data
-            });
-        })
+        fetch("/api/register", { method: "POST", body: formData })
+        .then(response => response.json().then(data => {
+            if (!response.ok) throw new Error(data.message);
+            return data;
+        }))
         .then(data => {
-            // 5. We are here if registration was successful!
-            //    data = { status: "success", message: "Registration successful! ..." }
-            console.log("Registration successful:", data);
-            
-            // Clear any old error messages
             registerMessage.classList.remove("error-message");
             registerMessage.classList.add("success-message");
             registerMessage.textContent = data.message;
-            
-            // Clear the form fields
             registerForm.reset();
-            loginMessage.textContent = ""; // Clear login error too
         })
         .catch(error => {
-            // 6. We are here if the registration failed
-            //    (e.g., "Username is already taken")
-            console.error("Registration failed:", error);
-            
-            // Show the error message
             registerMessage.classList.remove("success-message");
             registerMessage.classList.add("error-message");
             registerMessage.textContent = error.message;
@@ -332,21 +305,9 @@ viewSummaryButton.addEventListener("click", () => {
     });
 
     logoutButton.addEventListener("click", () => {
-    // Send a request to our new logout endpoint
-    fetch("/api/logout", {
-        method: "POST"
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log("Logout:", data.message);
-
-        // Reload the page. Since the session is destroyed,
-        // the server will send us back to the login screen.
-        window.location.reload();
-    })
-    .catch(error => {
-        console.error("Logout failed:", error);
+        fetch("/api/logout", { method: "POST" })
+        .then(() => window.location.reload())
+        .catch(err => console.error(err));
     });
-});
 
 });
