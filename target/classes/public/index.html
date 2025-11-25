@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Salaah Tracker</title>
     <link rel="stylesheet" href="style.css">
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#007bff">
+
+    <!-- === THIS IS THE FIX FOR IPHONE/IOS === -->
+    <link rel="apple-touch-icon" href="icon.png">
+    <!-- ====================================== -->
+
 </head>
 <body>
 
@@ -33,7 +41,7 @@
     <div id="app-container" class="hidden">
         <h2 id="welcome-message"></h2>
         <button id="logout-button">Logout</button>
-        <button id="view-summary-button">View Monthly Summary</button>
+        <button id="view-summary-button">View Monthly Calendar</button>
         <button id="view-weekly-button">View Weekly Summary</button>
         
         <hr>
@@ -45,46 +53,40 @@
     <!-- MONTHLY SUMMARY CONTAINER -->
     <div id="summary-container" class="hidden">
         <button id="back-to-prayers-button">&larr; Back to Today</button>
-        <h2>Monthly Summary</h2>
+        <h2>Monthly Calendar</h2>
 
-        <form id="summary-form">
-            <div class="form-row">
-                <select id="summary-month" required>
-                    <option value="1">January</option>
-                    <option value="2">February</option>
-                    <option value="3">March</option>
-                    <option value="4">April</option>
-                    <option value="5">May</option>
-                    <option value="6">June</option>
-                    <option value="7">July</option>
-                    <option value="8">August</option>
-                    <option value="9">September</option>
-                    <option value="10">October</option>
-                    <option value="11">November</option>
-                    <option value="12">December</option>
-                </select>
-                <select id="summary-year" required>
-                </select>
+        <div class="week-nav">
+            <button id="prev-month-btn">&larr; Prev</button>
+            <span id="current-month-label">Loading...</span>
+            <button id="next-month-btn">Next &rarr;</button>
+        </div>
+
+        <div class="calendar-wrapper">
+            <div class="calendar-header">
+                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
             </div>
-            <button type="submit">Get Summary</button>
-        </form>
+            <div id="calendar-grid" class="calendar-grid"></div>
+        </div>
 
-        <div id="summary-results"></div>
+        <div id="day-details" class="hidden">
+            <h3 id="selected-date-title">Details</h3>
+            <div id="selected-day-prayers"></div>
+        </div>
     </div>
 
-    <!-- WEEKLY SUMMARY CONTAINER (UPDATED) -->
+    <!-- WEEKLY SUMMARY CONTAINER -->
     <div id="weekly-container" class="hidden">
         <button id="back-from-weekly-button">&larr; Back to Today</button>
         <h2>Weekly Summary</h2>
 
-        <!-- New Navigation Bar -->
         <div class="week-nav">
             <button id="prev-week-btn">&larr; Prev</button>
             <span id="current-week-label">Loading...</span>
             <button id="next-week-btn">Next &rarr;</button>
         </div>
 
-        <div id="weekly-results"></div>
+        <!-- List Container -->
+        <div id="weekly-list"></div>
     </div>
 
     <script src="app.js"></script>

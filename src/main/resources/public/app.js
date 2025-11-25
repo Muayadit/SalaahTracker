@@ -22,38 +22,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const viewSummaryButton = document.getElementById("view-summary-button");
     const summaryContainer = document.getElementById("summary-container");
     const backToPrayersButton = document.getElementById("back-to-prayers-button");
-    const summaryForm = document.getElementById("summary-form");
-    const summaryMonth = document.getElementById("summary-month");
-    const summaryYear = document.getElementById("summary-year");
-    const summaryResults = document.getElementById("summary-results");
+    const prevMonthBtn = document.getElementById("prev-month-btn");
+    const nextMonthBtn = document.getElementById("next-month-btn");
+    const currentMonthLabel = document.getElementById("current-month-label");
+    const calendarGrid = document.getElementById("calendar-grid");
+    const dayDetails = document.getElementById("day-details");
+    const selectedDateTitle = document.getElementById("selected-date-title");
+    const selectedDayPrayers = document.getElementById("selected-day-prayers");
 
     // Weekly Elements
     const viewWeeklyButton = document.getElementById("view-weekly-button");
     const weeklyContainer = document.getElementById("weekly-container");
     const backFromWeeklyButton = document.getElementById("back-from-weekly-button");
-    const weeklyResults = document.getElementById("weekly-results");
-    
-    // NEW WEEKLY NAV ELEMENTS
+    const weeklyList = document.getElementById("weekly-list");
     const prevWeekBtn = document.getElementById("prev-week-btn");
     const nextWeekBtn = document.getElementById("next-week-btn");
     const currentWeekLabel = document.getElementById("current-week-label");
 
-    // STATE VARIABLE FOR WEEKLY VIEW
+    // STATE VARIABLES
     let currentWeeklyStartDate = new Date();
+    let currentMonthlyDate = new Date(); 
 
 
     // --- SHARED FUNCTIONS ---
-
-    function populateYearDropdown() {
-        summaryYear.innerHTML = ""; 
-        const currentYear = new Date().getFullYear();
-        for (let i = currentYear; i >= currentYear - 5; i--) {
-            const option = document.createElement("option");
-            option.value = i;
-            option.textContent = i;
-            summaryYear.appendChild(option);
-        }
-    }
 
     function loadPrayers() {
         prayerList.innerHTML = "";
@@ -66,18 +57,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 prayers.forEach(prayer => {
                     const prayerElement = document.createElement("div");
                     prayerElement.classList.add("prayer-item");
-
                     const prayerName = document.createElement("span");
                     prayerName.textContent = prayer.prayerName;
-                    
                     const checkbox = document.createElement("input");
                     checkbox.type = "checkbox";
                     checkbox.checked = prayer.completed;
                     checkbox.dataset.prayerId = prayer.id;
 
-                    if (prayer.completed) {
-                        checkbox.disabled = true;
-                    }
+                    if (prayer.completed) checkbox.disabled = true;
 
                     checkbox.addEventListener('change', () => {
                         if (checkbox.checked) {
@@ -96,7 +83,6 @@ document.addEventListener("DOMContentLoaded", () => {
                             });
                         }
                     });
-
                     prayerElement.appendChild(checkbox);
                     prayerElement.appendChild(prayerName);
                     prayerList.appendChild(prayerElement);
@@ -108,61 +94,6 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     }
 
-    function displaySummaryData(prayers, container) {
-        if (prayers.length === 0) {
-            container.innerHTML = "<p>No data found for this period.</p>";
-            return;
-        }
-
-        const prayersByDay = {};
-        prayers.forEach(p => {
-            const date = p.prayerDate;
-            if (!prayersByDay[date]) {
-                prayersByDay[date] = { completed: 0, total: 0 };
-            }
-            prayersByDay[date].total++;
-            if (p.completed) {
-                prayersByDay[date].completed++;
-            }
-        });
-
-        container.innerHTML = ""; 
-        const sortedDays = Object.keys(prayersByDay).sort();
-
-        sortedDays.forEach(day => {
-            const data = prayersByDay[day];
-            const dayElement = document.createElement("div");
-            dayElement.classList.add("summary-day-item");
-            
-            let status = "Partial";
-            if (data.completed === data.total) status = "All Complete";
-            else if (data.completed === 0) status = "None";
-
-            const [y, m, d] = day.split('-').map(Number);
-            const dateObj = new Date(y, m - 1, d);
-            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-
-            dayElement.innerHTML = `
-                <strong>${day} (${dayName})</strong> 
-                --- [${status}] --- 
-                (${data.completed}/${data.total}) prayers
-            `;
-            container.appendChild(dayElement);
-        });
-    }
-
-    function fetchMonthlySummary(year, month) {
-        summaryResults.innerHTML = "<p>Loading summary...</p>";
-        fetch(`/api/summary/monthly?year=${year}&month=${month}`)
-            .then(response => response.json())
-            .then(prayers => displaySummaryData(prayers, summaryResults))
-            .catch(error => {
-                summaryResults.innerHTML = `<p class="error-message">Error loading summary.</p>`;
-            });
-    }
-
-    // --- UPDATED WEEKLY LOGIC ---
-    
     function formatDateForApi(date) {
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -174,34 +105,185 @@ document.addEventListener("DOMContentLoaded", () => {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
+    // --- WEEKLY LIST LOGIC ---
+
     function updateWeeklyView() {
-        // 1. Calculate Start and End dates
         const startDate = new Date(currentWeeklyStartDate);
         const endDate = new Date(currentWeeklyStartDate);
-        endDate.setDate(startDate.getDate() + 6); // Add 6 days to get Saturday (Sunday-Saturday range)
+        endDate.setDate(startDate.getDate() + 6); 
 
-        // 2. Update Label
         currentWeekLabel.textContent = `${formatDateForLabel(startDate)} - ${formatDateForLabel(endDate)}`;
-
-        // 3. Fetch Data
         const apiDateParam = formatDateForApi(startDate);
-        weeklyResults.innerHTML = "<p>Loading...</p>";
         
+        weeklyList.innerHTML = "<p>Loading...</p>";
+
         fetch(`/api/summary/weekly?start=${apiDateParam}`)
             .then(response => response.json())
-            .then(prayers => displaySummaryData(prayers, weeklyResults))
+            .then(prayers => renderWeeklyList(prayers))
             .catch(error => {
-                weeklyResults.innerHTML = `<p class="error-message">Error loading data.</p>`;
+                weeklyList.innerHTML = `<p class="error-message">Error loading data.</p>`;
             });
     }
 
-    // Helper to find the SUNDAY of the current week
+    function renderWeeklyList(prayers) {
+        weeklyList.innerHTML = "";
+
+        // Group prayers by date
+        const prayersByDay = {};
+        prayers.forEach(p => {
+            if (!prayersByDay[p.prayerDate]) prayersByDay[p.prayerDate] = [];
+            prayersByDay[p.prayerDate].push(p);
+        });
+
+        const prayerNames = ["Fajr", "Dhuhr", "Asr", "Maghrib", "Isha"];
+
+        for (let i = 0; i < 7; i++) {
+            const cellDate = new Date(currentWeeklyStartDate);
+            cellDate.setDate(cellDate.getDate() + i);
+            
+            const cellDateString = formatDateForApi(cellDate);
+            const daysPrayers = prayersByDay[cellDateString] || [];
+
+            const row = document.createElement("div");
+            row.classList.add("weekly-day-row");
+
+            // --- DETERMINE ROW COLOR STATUS ---
+            const total = daysPrayers.length;
+            const completed = daysPrayers.filter(p => p.completed).length;
+            
+            let statusClass = "status-empty";
+            if (total > 0) {
+                if (completed === total) statusClass = "status-full"; // All done (Green)
+                else if (completed === 0) statusClass = "status-none"; // None done (Red)
+                else statusClass = "status-partial"; // Some done (Yellow)
+            }
+            row.classList.add(statusClass);
+            // ----------------------------------
+
+            const dateCol = document.createElement("div");
+            dateCol.classList.add("weekly-date-col");
+            
+            const dayName = cellDate.toLocaleDateString('en-US', { weekday: 'long' });
+            const dateShort = cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            dateCol.innerHTML = `${dayName} <span class="sub-date">${dateShort}</span>`;
+
+            const prayersCol = document.createElement("div");
+            prayersCol.classList.add("weekly-prayers-col");
+
+            if (daysPrayers.length === 0) {
+                prayersCol.innerHTML = "<span style='color:#777; font-style:italic;'>No data</span>";
+            } else {
+                prayerNames.forEach(name => {
+                    const pLog = daysPrayers.find(p => p.prayerName === name);
+                    const isDone = pLog && pLog.completed;
+                    
+                    const miniStatus = document.createElement("div");
+                    miniStatus.classList.add("mini-prayer-status");
+                    if (isDone) miniStatus.classList.add("done");
+                    else miniStatus.classList.add("missed");
+
+                    miniStatus.innerHTML = `${name} ${isDone ? '✅' : '❌'}`;
+                    prayersCol.appendChild(miniStatus);
+                });
+            }
+
+            row.appendChild(dateCol);
+            row.appendChild(prayersCol);
+            weeklyList.appendChild(row);
+        }
+    }
+
     function setToCurrentWeekSunday() {
         const d = new Date();
-        const day = d.getDay(); // 0 is Sunday, 1 is Monday, etc.
-        // If today is Sunday (0), diff is 0. If Monday (1), diff is -1.
+        const day = d.getDay(); 
         const diff = d.getDate() - day; 
         currentWeeklyStartDate = new Date(d.setDate(diff));
+    }
+
+    // --- MONTHLY CALENDAR LOGIC ---
+
+    function updateMonthlyView() {
+        currentMonthLabel.textContent = currentMonthlyDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        calendarGrid.innerHTML = "<p>Loading...</p>";
+        dayDetails.classList.add("hidden");
+
+        const year = currentMonthlyDate.getFullYear();
+        const month = currentMonthlyDate.getMonth() + 1;
+
+        fetch(`/api/summary/monthly?year=${year}&month=${month}`)
+            .then(response => response.json())
+            .then(prayers => renderCalendar(year, month, prayers))
+            .catch(error => {
+                calendarGrid.innerHTML = `<p class="error-message">Error loading calendar.</p>`;
+            });
+    }
+
+    function renderCalendar(year, month, prayers) {
+        calendarGrid.innerHTML = "";
+        const prayersByDay = {};
+        prayers.forEach(p => {
+            if (!prayersByDay[p.prayerDate]) prayersByDay[p.prayerDate] = [];
+            prayersByDay[p.prayerDate].push(p);
+        });
+
+        const firstDayOfMonth = new Date(year, month - 1, 1).getDay(); 
+        const daysInMonth = new Date(year, month, 0).getDate();
+
+        for (let i = 0; i < firstDayOfMonth; i++) {
+            const emptyCell = document.createElement("div");
+            emptyCell.classList.add("calendar-day", "empty");
+            calendarGrid.appendChild(emptyCell);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const cell = document.createElement("div");
+            cell.classList.add("calendar-day");
+
+            const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const daysPrayers = prayersByDay[dateKey] || [];
+
+            const total = daysPrayers.length;
+            const completed = daysPrayers.filter(p => p.completed).length;
+            
+            let statusClass = "status-empty";
+            if (total > 0) {
+                if (completed === total) statusClass = "status-full";
+                else if (completed === 0) statusClass = "status-none";
+                else statusClass = "status-partial";
+            }
+
+            cell.classList.add(statusClass);
+            cell.innerHTML = `
+                <div class="day-number">${day}</div>
+                <div class="day-status">${completed}/${total}</div>
+            `;
+
+            cell.addEventListener("click", () => {
+                showDayDetails(dateKey, daysPrayers);
+            });
+
+            calendarGrid.appendChild(cell);
+        }
+    }
+
+    function showDayDetails(dateKey, prayers) {
+        dayDetails.classList.remove("hidden");
+        selectedDateTitle.textContent = `Prayers for ${dateKey}`;
+        selectedDayPrayers.innerHTML = "";
+
+        if (prayers.length === 0) {
+            selectedDayPrayers.innerHTML = "<p>No data recorded.</p>";
+            return;
+        }
+
+        prayers.forEach(p => {
+            const pDiv = document.createElement("div");
+            const icon = p.completed ? "✅" : "❌";
+            pDiv.textContent = `${p.prayerName}: ${icon}`;
+            pDiv.style.color = p.completed ? "green" : "red";
+            selectedDayPrayers.appendChild(pDiv);
+        });
     }
 
 
@@ -212,38 +294,17 @@ document.addEventListener("DOMContentLoaded", () => {
         weeklyContainer.classList.add("hidden");
         summaryContainer.classList.remove("hidden");
         
-        populateYearDropdown();
-        const now = new Date();
-        summaryYear.value = now.getFullYear();
-        summaryMonth.value = now.getMonth() + 1; 
-        fetchMonthlySummary(now.getFullYear(), now.getMonth() + 1);
+        currentMonthlyDate = new Date();
+        currentMonthlyDate.setDate(1); 
+        updateMonthlyView();
     });
 
-    // WEEKLY VIEW BUTTON - Initialize to current week (Sunday Start)
     viewWeeklyButton.addEventListener("click", () => {
         appContainer.classList.add("hidden");
         summaryContainer.classList.add("hidden");
         weeklyContainer.classList.remove("hidden");
-
-        setToCurrentWeekSunday(); // Reset to this week's Sunday
-        updateWeeklyView(); // Fetch and Display
-    });
-
-    // PREV BUTTON - Go back 7 days
-    prevWeekBtn.addEventListener("click", () => {
-        currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() - 7);
+        setToCurrentWeekSunday();
         updateWeeklyView();
-    });
-
-    // NEXT BUTTON - Go forward 7 days
-    nextWeekBtn.addEventListener("click", () => {
-        currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() + 7);
-        updateWeeklyView();
-    });
-
-    summaryForm.addEventListener("submit", (event) => {
-        event.preventDefault(); 
-        fetchMonthlySummary(summaryYear.value, summaryMonth.value);
     });
 
     backToPrayersButton.addEventListener("click", () => {
@@ -256,6 +317,24 @@ document.addEventListener("DOMContentLoaded", () => {
         weeklyContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
         loadPrayers();
+    });
+
+    prevWeekBtn.addEventListener("click", () => {
+        currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() - 7);
+        updateWeeklyView();
+    });
+    nextWeekBtn.addEventListener("click", () => {
+        currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() + 7);
+        updateWeeklyView();
+    });
+
+    prevMonthBtn.addEventListener("click", () => {
+        currentMonthlyDate.setMonth(currentMonthlyDate.getMonth() - 1);
+        updateMonthlyView();
+    });
+    nextMonthBtn.addEventListener("click", () => {
+        currentMonthlyDate.setMonth(currentMonthlyDate.getMonth() + 1);
+        updateMonthlyView();
     });
 
     loginForm.addEventListener("submit", (event) => {
