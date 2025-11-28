@@ -9,10 +9,15 @@ public class App {
         DatabaseManager dbManager = new DatabaseManager();
         dbManager.initializeDatabase();
 
+        // 1. Initialize the Telegram Bot
+        TelegramBot bot = new TelegramBot();
+
         var app = Javalin.create(config -> {
             config.staticFiles.add("public");
         }).start(7070);
 
+        // --- AUTH ENDPOINTS ---
+        
         app.post("/api/login", ctx -> {
             String username = ctx.formParam("username");
             String password = ctx.formParam("password");
@@ -44,6 +49,14 @@ public class App {
                 ctx.contentType("application/json");
             }
         });
+
+        app.post("/api/logout", ctx -> {
+            ctx.req().getSession().invalidate();
+            ctx.result("{\"status\":\"success\", \"message\":\"Logged out successfully\"}");
+            ctx.contentType("application/json");
+        });
+
+        // --- PRAYER DATA ENDPOINTS ---
 
         app.get("/api/prayers/today", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
@@ -79,6 +92,8 @@ public class App {
                 ctx.contentType("application/json");
             }
         });
+
+        // --- SUMMARY ENDPOINTS ---
 
         app.get("/api/summary/monthly", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
@@ -125,11 +140,62 @@ public class App {
             }
         });
 
-        app.post("/api/logout", ctx -> {
-            ctx.req().getSession().invalidate();
-            ctx.result("{\"status\":\"success\", \"message\":\"Logged out successfully\"}");
+        // --- TELEGRAM NOTIFICATION ENDPOINTS ---
+
+        // 1. Link a Telegram ID to the current user
+        app.post("/api/telegram/link", ctx -> {
+            User currentUser = ctx.sessionAttribute("currentUser");
+            if (currentUser == null) {
+                ctx.status(403);
+                ctx.result("{\"status\":\"failure\", \"message\":\"Not logged in\"}");
+                ctx.contentType("application/json");
+                return;
+            }
+
+            String chatId = ctx.formParam("chatId");
+            dbManager.linkTelegramUser(currentUser.getId(), chatId);
+            
+            // Send confirmation
+            bot.sendMessage(chatId, "✅ Connected! You will now receive prayer reminders here.");
+
+            ctx.result("{\"status\":\"success\", \"message\":\"Telegram connected successfully!\"}");
             ctx.contentType("application/json");
         });
+
+        // 2. Send a manual test message
+        app.post("/api/telegram/test", ctx -> {
+            User currentUser = ctx.sessionAttribute("currentUser");
+            if (currentUser != null) {
+                // Refresh user from DB to get the latest chat ID
+                User freshUser = dbManager.searchUser(currentUser.getUsername());
+                
+                if (freshUser.getTelegramChatId() != null) {
+                    bot.sendMessage(freshUser.getTelegramChatId(), "🔔 Test: Salaah Tracker notifications are working!");
+                    ctx.result("{\"status\":\"success\", \"message\":\"Message sent to Telegram!\"}");
+                } else {
+                    ctx.result("{\"status\":\"failure\", \"message\":\"No Telegram ID linked yet.\"}");
+                }
+                ctx.contentType("application/json");
+            }
+        });
+
+        // 3. THE AUTOMATION TRIGGER (For Cron Jobs)
+        // Example URL: /api/remind/Asr
+        app.get("/api/remind/{prayer}", ctx -> {
+            String prayerName = ctx.pathParam("prayer"); // e.g. "Asr"
+            
+            // Get all chat IDs for users who have NOT prayed this prayer today
+            List<String> chatIdsToRemind = dbManager.getChatIdsForMissingPrayer(prayerName, LocalDate.now());
+            
+            int count = 0;
+            for (String chatId : chatIdsToRemind) {
+                bot.sendMessage(chatId, "⚠️ Reminder: You haven't marked '" + prayerName + "' as complete yet! Please pray before the time ends.");
+                count++;
+            }
+            
+            ctx.result("Sent reminders to " + count + " users for " + prayerName);
+        });
+
 
         System.out.println("========================================");
         System.out.println("Salaah Tracker Web Server Started!");

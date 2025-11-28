@@ -14,11 +14,9 @@ import org.mindrot.jbcrypt.BCrypt;
 
 public class DatabaseManager {
     
-    // We get the URL from the cloud environment (Render)
     private String getDatabaseUrl() {
         String url = System.getenv("DB_URL");
         if (url == null) {
-            // Fallback: If no cloud URL is found, use the local SQLite file
             return "jdbc:sqlite:salaahtracker.db"; 
         }
         return url;
@@ -35,17 +33,17 @@ public class DatabaseManager {
     }
 
     public void initializeDatabase(){
-        // Postgres uses 'SERIAL' for IDs, SQLite uses 'AUTOINCREMENT'
-        // This logic checks which database we are using and sets the right command
         String idType = "SERIAL PRIMARY KEY"; 
         if (getDatabaseUrl().contains("sqlite")) {
             idType = "INTEGER PRIMARY KEY AUTOINCREMENT";
         }
 
+        // UPDATED: Added telegram_chat_id column
         String createUserTable = "CREATE TABLE IF NOT EXISTS users ("
         + " id " + idType + ","
         + " username TEXT UNIQUE NOT NULL,"
-        + " password TEXT NOT NULL "
+        + " password TEXT NOT NULL,"
+        + " telegram_chat_id TEXT" 
         + " );";
     
         String createPrayerLogTable = "CREATE TABLE IF NOT EXISTS prayer_log ("
@@ -53,7 +51,7 @@ public class DatabaseManager {
         + " user_id INTEGER NOT NULL,"
         + " prayer_name TEXT NOT NULL,"
         + " prayer_date TEXT NOT NULL,"
-        + " is_completed INTEGER NOT NULL DEFAULT 0," // 0 is false, 1 is true
+        + " is_completed INTEGER NOT NULL DEFAULT 0,"
         + " FOREIGN KEY (user_id) REFERENCES users (id)"
         + " );";
     
@@ -73,7 +71,13 @@ public class DatabaseManager {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
-                return new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"));
+                // UPDATED: Include telegram_chat_id
+                return new User(
+                    rs.getInt("id"), 
+                    rs.getString("username"), 
+                    rs.getString("password"),
+                    rs.getString("telegram_chat_id")
+                );
             }
         } catch (SQLException e) {
             System.out.println(e.getMessage());
@@ -103,11 +107,13 @@ public class DatabaseManager {
                 if(rs.next()){
                     String storedHash = rs.getString("password");
                     if(BCrypt.checkpw(password, storedHash)){
-                        User user = new User();
-                        user.setId(rs.getInt("id"));
-                        user.setUsername(rs.getString("username"));
-                        user.setPassword(storedHash);
-                        return user;
+                        // UPDATED: Include telegram_chat_id
+                        return new User(
+                            rs.getInt("id"), 
+                            rs.getString("username"), 
+                            rs.getString("password"),
+                            rs.getString("telegram_chat_id")
+                        );
                     }
                 }
              } catch(SQLException e){
@@ -116,17 +122,53 @@ public class DatabaseManager {
              return null;
      }
 
+     // === NEW: Link a Telegram Chat ID to a User ===
+     public void linkTelegramUser(int userId, String chatId) {
+         String sql = "UPDATE users SET telegram_chat_id = ? WHERE id = ?";
+         try (Connection conn = this.connect();
+              PreparedStatement pstmt = conn.prepareStatement(sql)) {
+             pstmt.setString(1, chatId);
+             pstmt.setInt(2, userId);
+             pstmt.executeUpdate();
+         } catch (SQLException e) {
+             System.out.println("Error linking telegram: " + e.getMessage());
+         }
+     }
+
+     // === NEW: Find users who haven't prayed a specific prayer today ===
+     public List<String> getChatIdsForMissingPrayer(String prayerName, LocalDate date) {
+        List<String> chatIds = new ArrayList<>();
+        String sql = "SELECT telegram_chat_id FROM users " +
+                     "WHERE telegram_chat_id IS NOT NULL " +
+                     "AND id NOT IN (" +
+                     "  SELECT user_id FROM prayer_log " +
+                     "  WHERE prayer_name = ? AND prayer_date = ? AND is_completed = 1" +
+                     ")";
+
+        try (Connection conn = this.connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, prayerName);
+            pstmt.setString(2, date.toString());
+            
+            ResultSet rs = pstmt.executeQuery();
+            while(rs.next()) {
+                chatIds.add(rs.getString("telegram_chat_id"));
+            }
+        } catch (SQLException e) {
+            System.out.println("Error fetching missing prayers: " + e.getMessage());
+        }
+        return chatIds;
+     }
+
      public List<PrayerLog> getPrayersForToday(int userId, LocalDate date){
         List<PrayerLog> todayPrayers = new ArrayList<>();
         String dateString = date.toString();
-    
         String checkNumOfPrayersAvailable = "SELECT COUNT(*) AS count FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
         try (Connection conn = this.connect();
              PreparedStatement pstmt = conn.prepareStatement(checkNumOfPrayersAvailable)){
                 pstmt.setInt(1, userId);
                 pstmt.setString(2, dateString);
                 ResultSet rs = pstmt.executeQuery();
-    
                 if(rs.next() && rs.getInt("count") == 0){
                     List<String> the5Prayers = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
                     String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0)";
@@ -143,7 +185,6 @@ public class DatabaseManager {
             System.out.println("Error checking/creating daily prayers: " + e.getMessage());
             return todayPrayers;
         }
-    
         String fetchPrayers = "SELECT * FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
         try (Connection conn = this.connect();
              PreparedStatement fetchstmt = conn.prepareStatement(fetchPrayers)){

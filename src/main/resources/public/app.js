@@ -18,7 +18,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const prayerList = document.getElementById("prayer-list");
     const logoutButton = document.getElementById("logout-button");
 
-    // Monthly Elements
     const viewSummaryButton = document.getElementById("view-summary-button");
     const summaryContainer = document.getElementById("summary-container");
     const backToPrayersButton = document.getElementById("back-to-prayers-button");
@@ -30,7 +29,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectedDateTitle = document.getElementById("selected-date-title");
     const selectedDayPrayers = document.getElementById("selected-day-prayers");
 
-    // Weekly Elements
     const viewWeeklyButton = document.getElementById("view-weekly-button");
     const weeklyContainer = document.getElementById("weekly-container");
     const backFromWeeklyButton = document.getElementById("back-from-weekly-button");
@@ -38,6 +36,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const prevWeekBtn = document.getElementById("prev-week-btn");
     const nextWeekBtn = document.getElementById("next-week-btn");
     const currentWeekLabel = document.getElementById("current-week-label");
+    const weeklyDayDetails = document.getElementById("weekly-day-details");
+    const weeklySelectedDateTitle = document.getElementById("weekly-selected-date-title");
+    const weeklySelectedDayPrayers = document.getElementById("weekly-selected-day-prayers");
+
+    // NEW SETTINGS ELEMENTS
+    const viewSettingsButton = document.getElementById("view-settings-button");
+    const settingsContainer = document.getElementById("settings-container");
+    const backFromSettingsButton = document.getElementById("back-from-settings-button");
+    const telegramForm = document.getElementById("telegram-form");
+    const telegramChatId = document.getElementById("telegram-chat-id");
+    const telegramMessage = document.getElementById("telegram-message");
+    const testTelegramBtn = document.getElementById("test-telegram-btn");
 
     // STATE VARIABLES
     let currentWeeklyStartDate = new Date();
@@ -127,8 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderWeeklyList(prayers) {
         weeklyList.innerHTML = "";
-
-        // Group prayers by date
         const prayersByDay = {};
         prayers.forEach(p => {
             if (!prayersByDay[p.prayerDate]) prayersByDay[p.prayerDate] = [];
@@ -147,18 +155,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const row = document.createElement("div");
             row.classList.add("weekly-day-row");
 
-            // --- DETERMINE ROW COLOR STATUS ---
             const total = daysPrayers.length;
             const completed = daysPrayers.filter(p => p.completed).length;
             
             let statusClass = "status-empty";
             if (total > 0) {
-                if (completed === total) statusClass = "status-full"; // All done (Green)
-                else if (completed === 0) statusClass = "status-none"; // None done (Red)
-                else statusClass = "status-partial"; // Some done (Yellow)
+                if (completed === total) statusClass = "status-full";
+                else if (completed === 0) statusClass = "status-none";
+                else statusClass = "status-partial";
             }
             row.classList.add(statusClass);
-            // ----------------------------------
 
             const dateCol = document.createElement("div");
             dateCol.classList.add("weekly-date-col");
@@ -292,8 +298,8 @@ document.addEventListener("DOMContentLoaded", () => {
     viewSummaryButton.addEventListener("click", () => {
         appContainer.classList.add("hidden");
         weeklyContainer.classList.add("hidden");
+        settingsContainer.classList.add("hidden"); // Hide settings
         summaryContainer.classList.remove("hidden");
-        
         currentMonthlyDate = new Date();
         currentMonthlyDate.setDate(1); 
         updateMonthlyView();
@@ -302,23 +308,39 @@ document.addEventListener("DOMContentLoaded", () => {
     viewWeeklyButton.addEventListener("click", () => {
         appContainer.classList.add("hidden");
         summaryContainer.classList.add("hidden");
+        settingsContainer.classList.add("hidden"); // Hide settings
         weeklyContainer.classList.remove("hidden");
         setToCurrentWeekSunday();
         updateWeeklyView();
     });
 
+    // NEW: View Settings
+    viewSettingsButton.addEventListener("click", () => {
+        appContainer.classList.add("hidden");
+        summaryContainer.classList.add("hidden");
+        weeklyContainer.classList.add("hidden");
+        settingsContainer.classList.remove("hidden");
+    });
+
+    // Back Buttons
     backToPrayersButton.addEventListener("click", () => {
         summaryContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
         loadPrayers();
     });
-
     backFromWeeklyButton.addEventListener("click", () => {
         weeklyContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
         loadPrayers();
     });
+    // NEW: Back from Settings
+    backFromSettingsButton.addEventListener("click", () => {
+        settingsContainer.classList.add("hidden");
+        appContainer.classList.remove("hidden");
+        loadPrayers();
+    });
 
+    // Navigation Buttons
     prevWeekBtn.addEventListener("click", () => {
         currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() - 7);
         updateWeeklyView();
@@ -327,7 +349,6 @@ document.addEventListener("DOMContentLoaded", () => {
         currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() + 7);
         updateWeeklyView();
     });
-
     prevMonthBtn.addEventListener("click", () => {
         currentMonthlyDate.setMonth(currentMonthlyDate.getMonth() - 1);
         updateMonthlyView();
@@ -337,6 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
         updateMonthlyView();
     });
 
+    // Form Handlers
     loginForm.addEventListener("submit", (event) => {
         event.preventDefault();
         const formData = new URLSearchParams();
@@ -387,6 +409,36 @@ document.addEventListener("DOMContentLoaded", () => {
         fetch("/api/logout", { method: "POST" })
         .then(() => window.location.reload())
         .catch(err => console.error(err));
+    });
+
+    // NEW: Telegram Settings Handlers
+    telegramForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const chatId = telegramChatId.value;
+        const formData = new URLSearchParams();
+        formData.append("chatId", chatId);
+
+        fetch("/api/telegram/link", { method: "POST", body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                telegramMessage.style.color = "green";
+                telegramMessage.textContent = data.message;
+            } else {
+                telegramMessage.style.color = "red";
+                telegramMessage.textContent = data.message;
+            }
+        });
+    });
+
+    testTelegramBtn.addEventListener("click", () => {
+        telegramMessage.textContent = "Sending...";
+        fetch("/api/telegram/test", { method: "POST" })
+        .then(response => response.json())
+        .then(data => {
+            telegramMessage.style.color = data.status === "success" ? "green" : "red";
+            telegramMessage.textContent = data.message;
+        });
     });
 
 });

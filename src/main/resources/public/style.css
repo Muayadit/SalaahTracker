@@ -7,7 +7,7 @@ body {
     padding: 20px;
 }
 
-#auth-container, #app-container, #summary-container, #weekly-container {
+#auth-container, #app-container, #summary-container, #weekly-container, #settings-container {
     background: #fff;
     padding: 25px;
     border-radius: 8px;
@@ -39,20 +39,27 @@ button {
 }
 button:hover { background-color: #0056b3; }
 
-#back-to-prayers-button, #back-from-weekly-button {
+#back-to-prayers-button, #back-from-weekly-button, #back-from-settings-button {
     background: #6c757d;
     width: auto;
 }
 
-.week-nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
+/* SETTINGS BOX */
+.settings-box {
     background: #f8f9fa;
-    padding: 10px;
+    padding: 15px;
     border-radius: 5px;
     border: 1px solid #eee;
+}
+.settings-box p {
+    font-size: 14px;
+    margin-bottom: 10px;
+    color: #555;
+}
+
+/* WEEK NAV */
+.week-nav {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #eee;
 }
 .week-nav button { width: auto; padding: 5px 15px; margin: 0; font-size: 14px; }
 #current-week-label, #current-month-label { font-weight: bold; color: #333; }
@@ -61,130 +68,38 @@ button:hover { background-color: #0056b3; }
 .success-message { color: green; text-align: center; margin-top: 10px; }
 .hidden { display: none; }
 
-/* --- MONTHLY CALENDAR STYLES --- */
-.calendar-header {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    text-align: center;
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: #555;
-}
-.calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-}
-.calendar-day {
-    aspect-ratio: 1;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 0.1s, filter 0.2s;
-    position: relative;
-    background-color: #f9f9f9;
-}
-.calendar-day:hover { 
-    transform: scale(1.05);
-    filter: brightness(0.95);
-    border-color: #999;
-}
+/* MONTHLY CALENDAR STYLES */
+.calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-weight: bold; margin-bottom: 5px; color: #555; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.calendar-day { aspect-ratio: 1; border: 1px solid #eee; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s, filter 0.2s; position: relative; background-color: #f9f9f9; }
+.calendar-day:hover { transform: scale(1.05); filter: brightness(0.95); border-color: #999; }
 .day-number { font-weight: bold; font-size: 14px; margin-bottom: 2px; }
 .day-status { font-size: 11px; }
 
-/* --- STATUS COLORS (Used for Calendar Days) --- */
-.status-full { 
-    background-color: #d1e7dd; 
-    color: #0f5132; 
-    border-color: #badbcc;
-}
-.status-partial { 
-    background-color: #fff3cd; 
-    color: #664d03; 
-    border-color: #ffecb5;
-}
-.status-none { 
-    background-color: #f8d7da; 
-    color: #842029; 
-    border-color: #f5c2c7;
-}
-.status-empty { 
-    background-color: #f8f9fa; 
-    color: #aaa; 
-}
+.status-full { background-color: #d1e7dd; color: #0f5132; border-color: #badbcc; }
+.status-partial { background-color: #fff3cd; color: #664d03; border-color: #ffecb5; }
+.status-none { background-color: #f8d7da; color: #842029; border-color: #f5c2c7; }
+.status-empty { background-color: #f8f9fa; color: #aaa; }
 .calendar-day.empty { background: transparent; border: none; cursor: default; }
 
-#day-details {
-    margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #fdfdfd;
-}
+#day-details { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background-color: #fdfdfd; }
 #selected-day-prayers div { padding: 5px 0; border-bottom: 1px solid #eee; }
 
-/* --- WEEKLY LIST STYLES --- */
-#weekly-list {
-    display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;
-}
-
-.weekly-day-row {
-    display: flex; 
-    flex-direction: row; 
-    border: 1px solid #eee; 
-    border-radius: 6px; 
-    padding: 15px; 
-    background: #fafafa; 
-    align-items: center;
-    /* Smooth transition for hover effects */
-    transition: background-color 0.3s, border-color 0.3s;
-}
-
-/* --- WEEKLY ROW SPECIFIC STATUS COLORS --- */
-/* Background: Very light pastel version
-   Border: Slightly darker/saturated version of the background
-*/
-
-.weekly-day-row.status-full {
-    background-color: #e8f5e9; /* Light Green */
-    border-color: #a5d6a7;     /* Darker Green Border */
-}
-
-.weekly-day-row.status-partial {
-    background-color: #fffde7; /* Light Yellow */
-    border-color: #fff59d;     /* Darker Yellow Border */
-}
-
-.weekly-day-row.status-none {
-    background-color: #ffebee; /* Light Red */
-    border-color: #ef9a9a;     /* Darker Red Border */
-}
-
-.weekly-day-row.status-empty {
-    background-color: #fafafa;
-    border-color: #eee;
-}
-
-.weekly-date-col {
-    width: 120px; font-weight: bold; color: #333; font-size: 15px; border-right: 2px solid rgba(0,0,0,0.1); margin-right: 15px; display: flex; flex-direction: column; justify-content: center;
-}
+/* WEEKLY LIST STYLES */
+#weekly-list { display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto; }
+.weekly-day-row { display: flex; flex-direction: row; border: 1px solid #eee; border-radius: 6px; padding: 15px; background: #fafafa; align-items: center; transition: background-color 0.3s, border-color 0.3s; }
+.weekly-day-row.status-full { background-color: #e8f5e9; border-color: #a5d6a7; }
+.weekly-day-row.status-partial { background-color: #fffde7; border-color: #fff59d; }
+.weekly-day-row.status-none { background-color: #ffebee; border-color: #ef9a9a; }
+.weekly-day-row.status-empty { background-color: #fafafa; border-color: #eee; }
+.weekly-date-col { width: 120px; font-weight: bold; color: #333; font-size: 15px; border-right: 2px solid rgba(0,0,0,0.1); margin-right: 15px; display: flex; flex-direction: column; justify-content: center; }
 .weekly-date-col .sub-date { font-size: 12px; opacity: 0.7; font-weight: normal; }
 .weekly-prayers-col { display: flex; flex-wrap: wrap; gap: 10px; flex-grow: 1; }
-
-/* Mini Status Bubbles inside the row */
-.mini-prayer-status {
-    font-size: 13px; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); display: flex; align-items: center; gap: 5px;
-}
-/* We keep these colored to stand out against the colored row */
+.mini-prayer-status { font-size: 13px; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); display: flex; align-items: center; gap: 5px; }
 .mini-prayer-status.done { color: #155724; font-weight: bold; }
 .mini-prayer-status.missed { color: #721c24; opacity: 0.8; }
 
-/* ----------------------- */
-
-.prayer-item {
-    display: flex; align-items: center; padding: 12px;
-    border: 1px solid #eee; border-radius: 4px; margin-bottom: 8px; background: #fafafa;
-}
+.prayer-item { display: flex; align-items: center; padding: 12px; border: 1px solid #eee; border-radius: 4px; margin-bottom: 8px; background: #fafafa; }
 .prayer-item input[type="checkbox"] { width: 20px; height: 20px; margin-right: 12px; }
 .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
 .form-row select, .form-row input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
