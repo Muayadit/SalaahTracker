@@ -13,31 +13,47 @@ import java.util.List;
 import org.mindrot.jbcrypt.BCrypt;
 
 public class DatabaseManager {
-    private static final String databaseAddress = "jdbc:sqlite:salaahtracker.db";
+    
+    // We get the URL from the cloud environment (Render)
+    private String getDatabaseUrl() {
+        String url = System.getenv("DB_URL");
+        if (url == null) {
+            // Fallback: If no cloud URL is found, use the local SQLite file
+            return "jdbc:sqlite:salaahtracker.db"; 
+        }
+        return url;
+    }
 
     public Connection connect() {
         Connection conn = null;
         try {
-            conn = DriverManager.getConnection(databaseAddress);
+            conn = DriverManager.getConnection(getDatabaseUrl());
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Connection Error: " + e.getMessage());
         }
         return conn;
     }
 
     public void initializeDatabase(){
+        // Postgres uses 'SERIAL' for IDs, SQLite uses 'AUTOINCREMENT'
+        // This logic checks which database we are using and sets the right command
+        String idType = "SERIAL PRIMARY KEY"; 
+        if (getDatabaseUrl().contains("sqlite")) {
+            idType = "INTEGER PRIMARY KEY AUTOINCREMENT";
+        }
+
         String createUserTable = "CREATE TABLE IF NOT EXISTS users ("
-        + " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        + " id " + idType + ","
         + " username TEXT UNIQUE NOT NULL,"
         + " password TEXT NOT NULL "
         + " );";
     
         String createPrayerLogTable = "CREATE TABLE IF NOT EXISTS prayer_log ("
-        + " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        + " id " + idType + ","
         + " user_id INTEGER NOT NULL,"
         + " prayer_name TEXT NOT NULL,"
         + " prayer_date TEXT NOT NULL,"
-        + " is_completed INTEGER NOT NULL DEFAULT 0,"
+        + " is_completed INTEGER NOT NULL DEFAULT 0," // 0 is false, 1 is true
         + " FOREIGN KEY (user_id) REFERENCES users (id)"
         + " );";
     
@@ -46,7 +62,7 @@ public class DatabaseManager {
             stmt.execute(createUserTable);
             stmt.execute(createPrayerLogTable);
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Init Error: " + e.getMessage());
         }
      }
 
@@ -113,7 +129,7 @@ public class DatabaseManager {
     
                 if(rs.next() && rs.getInt("count") == 0){
                     List<String> the5Prayers = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
-                    String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0);";
+                    String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0)";
                     try (PreparedStatement instmt = conn.prepareStatement(insertPrayers)){
                         for (String prayer : the5Prayers) {
                             instmt.setInt(1, userId);
@@ -185,7 +201,6 @@ public class DatabaseManager {
         return monthlyPrayers;
       }
 
-    // === METHOD FOR WEEKLY SUMMARY ===
     public List<PrayerLog> getPrayersBetweenDates(int userId, LocalDate startDate, LocalDate endDate) {
         List<PrayerLog> prayers = new ArrayList<>();
         String sql = "SELECT * FROM prayer_log WHERE user_id = ? AND prayer_date BETWEEN ? AND ? ORDER BY prayer_date";
