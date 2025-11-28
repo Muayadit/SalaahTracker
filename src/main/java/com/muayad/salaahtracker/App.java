@@ -1,7 +1,9 @@
 package com.muayad.salaahtracker;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import io.javalin.Javalin;
 
 public class App {
@@ -9,20 +11,18 @@ public class App {
         DatabaseManager dbManager = new DatabaseManager();
         dbManager.initializeDatabase();
 
-        // 1. Initialize the Telegram Bot
         TelegramBot bot = new TelegramBot();
+        PrayerTimesService prayerService = new PrayerTimesService(); // <--- NEW
 
         var app = Javalin.create(config -> {
             config.staticFiles.add("public");
         }).start(7070);
 
-        // --- AUTH ENDPOINTS ---
-        
+        // --- AUTH ---
         app.post("/api/login", ctx -> {
             String username = ctx.formParam("username");
             String password = ctx.formParam("password");
             User loggedInUser = dbManager.loginUser(username, password);
-
             if (loggedInUser != null) {
                 ctx.sessionAttribute("currentUser", loggedInUser);
                 ctx.result("{\"status\":\"success\", \"username\":\"" + loggedInUser.getUsername() + "\"}");
@@ -38,7 +38,6 @@ public class App {
             String username = ctx.formParam("username");
             String password = ctx.formParam("password");
             User existingUser = dbManager.searchUser(username);
-
             if (existingUser != null) {
                 ctx.status(409);
                 ctx.result("{\"status\":\"failure\", \"message\":\"Username is already taken\"}");
@@ -56,8 +55,7 @@ public class App {
             ctx.contentType("application/json");
         });
 
-        // --- PRAYER DATA ENDPOINTS ---
-
+        // --- DATA ---
         app.get("/api/prayers/today", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser == null) {
@@ -92,8 +90,6 @@ public class App {
                 ctx.contentType("application/json");
             }
         });
-
-        // --- SUMMARY ENDPOINTS ---
 
         app.get("/api/summary/monthly", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
@@ -140,9 +136,7 @@ public class App {
             }
         });
 
-        // --- TELEGRAM NOTIFICATION ENDPOINTS ---
-
-        // 1. Link a Telegram ID to the current user
+        // --- TELEGRAM ---
         app.post("/api/telegram/link", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser == null) {
@@ -151,24 +145,17 @@ public class App {
                 ctx.contentType("application/json");
                 return;
             }
-
             String chatId = ctx.formParam("chatId");
             dbManager.linkTelegramUser(currentUser.getId(), chatId);
-            
-            // Send confirmation
             bot.sendMessage(chatId, "✅ Connected! You will now receive prayer reminders here.");
-
             ctx.result("{\"status\":\"success\", \"message\":\"Telegram connected successfully!\"}");
             ctx.contentType("application/json");
         });
 
-        // 2. Send a manual test message
         app.post("/api/telegram/test", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser != null) {
-                // Refresh user from DB to get the latest chat ID
                 User freshUser = dbManager.searchUser(currentUser.getUsername());
-                
                 if (freshUser.getTelegramChatId() != null) {
                     bot.sendMessage(freshUser.getTelegramChatId(), "🔔 Test: Salaah Tracker notifications are working!");
                     ctx.result("{\"status\":\"success\", \"message\":\"Message sent to Telegram!\"}");
@@ -179,23 +166,58 @@ public class App {
             }
         });
 
-        // 3. THE AUTOMATION TRIGGER (For Cron Jobs)
-        // Example URL: /api/remind/Asr
-        app.get("/api/remind/{prayer}", ctx -> {
-            String prayerName = ctx.pathParam("prayer"); // e.g. "Asr"
-            
-            // Get all chat IDs for users who have NOT prayed this prayer today
-            List<String> chatIdsToRemind = dbManager.getChatIdsForMissingPrayer(prayerName, LocalDate.now());
-            
-            int count = 0;
-            for (String chatId : chatIdsToRemind) {
-                bot.sendMessage(chatId, "⚠️ Reminder: You haven't marked '" + prayerName + "' as complete yet! Please pray before the time ends.");
-                count++;
-            }
-            
-            ctx.result("Sent reminders to " + count + " users for " + prayerName);
-        });
+        // --- NEW SMART AUTO-REMINDER ---
+        // Usage: /api/check-reminders?city=Jeddah&country=SA
+        // This should be called by a Cron Job every 15 minutes
+        app.get("/api/check-reminders", ctx -> {
+            String city = ctx.queryParam("city");
+            String country = ctx.queryParam("country");
 
+            if (city == null || country == null) {
+                ctx.result("Please provide city and country");
+                return;
+            }
+
+            // 1. Get Live Prayer Times
+            Map<String, LocalTime> timings = prayerService.getPrayerTimes(city, country);
+            
+            if (timings == null) {
+                ctx.result("Could not fetch prayer times.");
+                return;
+            }
+
+            // 2. Check if ANY prayer is coming up in 20 minutes
+            // This returns "Maghrib" if Maghrib is in 20 mins
+            String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, 20);
+
+            if (upcomingPrayer != null) {
+                // 3. Determine the PREVIOUS prayer we need to check
+                // If Maghrib is coming, we check if user prayed Asr.
+                String prayerToCheck = "";
+                switch (upcomingPrayer) {
+                    case "Dhuhr": prayerToCheck = "Fajr"; break;
+                    case "Asr": prayerToCheck = "Dhuhr"; break;
+                    case "Maghrib": prayerToCheck = "Asr"; break;
+                    case "Isha": prayerToCheck = "Maghrib"; break;
+                    // We typically don't remind for Isha before Fajr as people are sleeping
+                    default: prayerToCheck = null; 
+                }
+
+                if (prayerToCheck != null) {
+                    // 4. Find users who missed it
+                    List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
+                    
+                    for (String chatId : chatIds) {
+                        bot.sendMessage(chatId, "⚠️ " + upcomingPrayer + " is in 20 minutes! Have you prayed " + prayerToCheck + "?");
+                    }
+                    ctx.result("Sent reminders for " + prayerToCheck + " (Upcoming: " + upcomingPrayer + ")");
+                } else {
+                    ctx.result("Upcoming prayer found (" + upcomingPrayer + "), but no previous prayer logic defined.");
+                }
+            } else {
+                ctx.result("No prayers upcoming in the next 20 mins.");
+            }
+        });
 
         System.out.println("========================================");
         System.out.println("Salaah Tracker Web Server Started!");
