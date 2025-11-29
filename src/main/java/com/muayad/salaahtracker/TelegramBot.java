@@ -44,7 +44,7 @@ public class TelegramBot {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenApply(HttpResponse::body)
                     .thenAccept(response -> {
-                        // System.out.println("Telegram Response: " + response); // Uncomment to debug
+                        System.out.println("Telegram Response: " + response); // NOW IT WILL SPEAK!
                     });
 
         } catch (Exception e) {
