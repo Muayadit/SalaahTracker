@@ -25,6 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const nextMonthBtn = document.getElementById("next-month-btn");
     const currentMonthLabel = document.getElementById("current-month-label");
     const calendarGrid = document.getElementById("calendar-grid");
+    const calendarHeader = document.getElementById("calendar-header");
     const dayDetails = document.getElementById("day-details");
     const selectedDateTitle = document.getElementById("selected-date-title");
     const selectedDayPrayers = document.getElementById("selected-day-prayers");
@@ -36,11 +37,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const prevWeekBtn = document.getElementById("prev-week-btn");
     const nextWeekBtn = document.getElementById("next-week-btn");
     const currentWeekLabel = document.getElementById("current-week-label");
-    const weeklyDayDetails = document.getElementById("weekly-day-details");
-    const weeklySelectedDateTitle = document.getElementById("weekly-selected-date-title");
-    const weeklySelectedDayPrayers = document.getElementById("weekly-selected-day-prayers");
-
-    // NEW SETTINGS ELEMENTS
+    
+    // Settings
     const viewSettingsButton = document.getElementById("view-settings-button");
     const settingsContainer = document.getElementById("settings-container");
     const backFromSettingsButton = document.getElementById("back-from-settings-button");
@@ -49,9 +47,120 @@ document.addEventListener("DOMContentLoaded", () => {
     const telegramMessage = document.getElementById("telegram-message");
     const testTelegramBtn = document.getElementById("test-telegram-btn");
 
+    const langToggle = document.getElementById("lang-toggle");
+
     // STATE VARIABLES
     let currentWeeklyStartDate = new Date();
     let currentMonthlyDate = new Date(); 
+    let currentLang = localStorage.getItem("app_lang") || "en";
+
+    // --- TRANSLATIONS ---
+    const translations = {
+        en: {
+            app_title: "Salaah Tracker",
+            login_title: "Login",
+            login_btn: "Login",
+            register_title: "Register",
+            register_btn: "Register",
+            logout_btn: "Logout",
+            view_monthly_btn: "View Monthly Calendar",
+            view_weekly_btn: "View Weekly Summary",
+            notif_settings_btn: "🔔 Notification Settings",
+            prayers_today_title: "Your Prayers for Today",
+            back_btn: "← Back to Today",
+            monthly_title: "Monthly Calendar",
+            weekly_title: "Weekly Summary",
+            prev_btn: "← Prev",
+            next_btn: "Next →",
+            notif_settings_title: "Notifications",
+            step_1: "1. Open Telegram and search for <strong>@userinfobot</strong>.",
+            step_2: "2. Click Start. It will give you a number (ID).",
+            step_3: "3. Paste that number below:",
+            connect_btn: "Connect Telegram",
+            send_test_btn: "Send Test Message",
+            welcome: "Welcome",
+            loading: "Loading...",
+            no_data: "No data found.",
+            week_days: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+            prayers: { "Fajr": "Fajr", "Dhuhr": "Dhuhr", "Asr": "Asr", "Maghrib": "Maghrib", "Isha": "Isha" }
+        },
+        ar: {
+            app_title: "متابع الصلوات",
+            login_title: "تسجيل الدخول",
+            login_btn: "دخول",
+            register_title: "تسجيل جديد",
+            register_btn: "تسجيل",
+            logout_btn: "تسجيل خروج",
+            view_monthly_btn: "التقويم الشهري",
+            view_weekly_btn: "الملخص الأسبوعي",
+            notif_settings_btn: "🔔 إعدادات التنبيهات",
+            prayers_today_title: "صلواتك اليوم",
+            back_btn: "العودة لليوم →",
+            monthly_title: "التقويم الشهري",
+            weekly_title: "الملخص الأسبوعي",
+            prev_btn: "السابق →",
+            next_btn: "← التالي",
+            notif_settings_title: "التنبيهات",
+            step_1: "1. افتح تيليجرام وابحث عن <strong>@userinfobot</strong>.",
+            step_2: "2. اضغط Start. سيعطيك رقم (هوية).",
+            step_3: "3. الصق الرقم بالأسفل:",
+            connect_btn: "ربط تيليجرام",
+            send_test_btn: "إرسال رسالة تجريبية",
+            welcome: "مرحباً",
+            loading: "جاري التحميل...",
+            no_data: "لا توجد بيانات.",
+            week_days: ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"],
+            prayers: { "Fajr": "الفجر", "Dhuhr": "الظهر", "Asr": "العصر", "Maghrib": "المغرب", "Isha": "العشاء" }
+        }
+    };
+
+    // --- LANGUAGE FUNCTIONS ---
+
+    function setLanguage(lang) {
+        currentLang = lang;
+        localStorage.setItem("app_lang", lang);
+        
+        // 1. Update Direction
+        document.documentElement.setAttribute("dir", lang === 'ar' ? 'rtl' : 'ltr');
+        
+        // 2. Update Button Text
+        langToggle.textContent = lang === 'ar' ? 'English' : 'عربي';
+
+        // 3. Update all static text with data-i18n attribute
+        document.querySelectorAll("[data-i18n]").forEach(el => {
+            const key = el.getAttribute("data-i18n");
+            if (translations[lang][key]) {
+                el.innerHTML = translations[lang][key];
+            }
+        });
+
+        // 4. Update Placeholders
+        document.getElementById("login-username").placeholder = lang === 'ar' ? "اسم المستخدم" : "Username";
+        document.getElementById("login-password").placeholder = lang === 'ar' ? "كلمة المرور" : "Password";
+        document.getElementById("register-username").placeholder = lang === 'ar' ? "اسم المستخدم" : "Username";
+        document.getElementById("register-password").placeholder = lang === 'ar' ? "كلمة المرور" : "Password";
+        document.getElementById("telegram-chat-id").placeholder = lang === 'ar' ? "مثال: 123456789" : "e.g. 123456789";
+
+        // 5. Update Calendar Header (Sun, Mon...)
+        calendarHeader.innerHTML = "";
+        translations[lang].week_days.forEach(day => {
+            const div = document.createElement("div");
+            div.textContent = day;
+            calendarHeader.appendChild(div);
+        });
+
+        // 6. Refresh Current Views if active
+        if (!appContainer.classList.contains("hidden")) loadPrayers();
+        if (!summaryContainer.classList.contains("hidden")) updateMonthlyView();
+        if (!weeklyContainer.classList.contains("hidden")) updateWeeklyView();
+    }
+
+    langToggle.addEventListener("click", () => {
+        setLanguage(currentLang === 'en' ? 'ar' : 'en');
+    });
+
+    // Initialize Language
+    setLanguage(currentLang);
 
 
     // --- SHARED FUNCTIONS ---
@@ -59,16 +168,17 @@ document.addEventListener("DOMContentLoaded", () => {
     function loadPrayers() {
         prayerList.innerHTML = "";
         fetch("/api/prayers/today")
-            .then(response => {
-                if (!response.ok) throw new Error("Could not get prayer list.");
-                return response.json();
-            })
+            .then(response => response.json())
             .then(prayers => {
                 prayers.forEach(prayer => {
                     const prayerElement = document.createElement("div");
                     prayerElement.classList.add("prayer-item");
+                    
+                    // TRANSLATE PRAYER NAME
+                    const tName = translations[currentLang].prayers[prayer.prayerName] || prayer.prayerName;
+                    
                     const prayerName = document.createElement("span");
-                    prayerName.textContent = prayer.prayerName;
+                    prayerName.textContent = tName;
                     const checkbox = document.createElement("input");
                     checkbox.type = "checkbox";
                     checkbox.checked = prayer.completed;
@@ -81,13 +191,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             const prayerId = checkbox.dataset.prayerId;
                             checkbox.disabled = true;
                             fetch("/api/prayers/complete/" + prayerId, { method: "PUT" })
-                            .then(response => {
-                                if (!response.ok) throw new Error("Update failed");
-                                return response.json();
-                            })
-                            .then(data => console.log("Success:", data.message))
+                            .then(response => response.json())
+                            .then(data => console.log("Success"))
                             .catch(err => {
-                                console.error(err);
                                 checkbox.disabled = false;
                                 checkbox.checked = false;
                             });
@@ -97,10 +203,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     prayerElement.appendChild(prayerName);
                     prayerList.appendChild(prayerElement);
                 });
-            })
-            .catch(error => {
-                console.error(error);
-                prayerList.textContent = "Could not load prayers.";
             });
     }
 
@@ -112,7 +214,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function formatDateForLabel(date) {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const locale = currentLang === 'ar' ? 'ar-SA' : 'en-US';
+        return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
     }
 
     // --- WEEKLY LIST LOGIC ---
@@ -125,13 +228,13 @@ document.addEventListener("DOMContentLoaded", () => {
         currentWeekLabel.textContent = `${formatDateForLabel(startDate)} - ${formatDateForLabel(endDate)}`;
         const apiDateParam = formatDateForApi(startDate);
         
-        weeklyList.innerHTML = "<p>Loading...</p>";
+        weeklyList.innerHTML = `<p>${translations[currentLang].loading}</p>`;
 
         fetch(`/api/summary/weekly?start=${apiDateParam}`)
             .then(response => response.json())
             .then(prayers => renderWeeklyList(prayers))
             .catch(error => {
-                weeklyList.innerHTML = `<p class="error-message">Error loading data.</p>`;
+                weeklyList.innerHTML = `<p class="error-message">Error</p>`;
             });
     }
 
@@ -148,7 +251,6 @@ document.addEventListener("DOMContentLoaded", () => {
         for (let i = 0; i < 7; i++) {
             const cellDate = new Date(currentWeeklyStartDate);
             cellDate.setDate(cellDate.getDate() + i);
-            
             const cellDateString = formatDateForApi(cellDate);
             const daysPrayers = prayersByDay[cellDateString] || [];
 
@@ -169,8 +271,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const dateCol = document.createElement("div");
             dateCol.classList.add("weekly-date-col");
             
-            const dayName = cellDate.toLocaleDateString('en-US', { weekday: 'long' });
-            const dateShort = cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const locale = currentLang === 'ar' ? 'ar-SA' : 'en-US';
+            const dayName = cellDate.toLocaleDateString(locale, { weekday: 'long' });
+            const dateShort = cellDate.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
             
             dateCol.innerHTML = `${dayName} <span class="sub-date">${dateShort}</span>`;
 
@@ -178,18 +281,20 @@ document.addEventListener("DOMContentLoaded", () => {
             prayersCol.classList.add("weekly-prayers-col");
 
             if (daysPrayers.length === 0) {
-                prayersCol.innerHTML = "<span style='color:#777; font-style:italic;'>No data</span>";
+                prayersCol.innerHTML = `<span style='color:#777; font-style:italic;'>${translations[currentLang].no_data}</span>`;
             } else {
                 prayerNames.forEach(name => {
                     const pLog = daysPrayers.find(p => p.prayerName === name);
                     const isDone = pLog && pLog.completed;
                     
+                    const tPrayerName = translations[currentLang].prayers[name];
+
                     const miniStatus = document.createElement("div");
                     miniStatus.classList.add("mini-prayer-status");
                     if (isDone) miniStatus.classList.add("done");
                     else miniStatus.classList.add("missed");
 
-                    miniStatus.innerHTML = `${name} ${isDone ? '✅' : '❌'}`;
+                    miniStatus.innerHTML = `${tPrayerName} ${isDone ? '✅' : '❌'}`;
                     prayersCol.appendChild(miniStatus);
                 });
             }
@@ -210,8 +315,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- MONTHLY CALENDAR LOGIC ---
 
     function updateMonthlyView() {
-        currentMonthLabel.textContent = currentMonthlyDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        calendarGrid.innerHTML = "<p>Loading...</p>";
+        const locale = currentLang === 'ar' ? 'ar-SA' : 'en-US';
+        currentMonthLabel.textContent = currentMonthlyDate.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+        calendarGrid.innerHTML = `<p>${translations[currentLang].loading}</p>`;
         dayDetails.classList.add("hidden");
 
         const year = currentMonthlyDate.getFullYear();
@@ -219,10 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         fetch(`/api/summary/monthly?year=${year}&month=${month}`)
             .then(response => response.json())
-            .then(prayers => renderCalendar(year, month, prayers))
-            .catch(error => {
-                calendarGrid.innerHTML = `<p class="error-message">Error loading calendar.</p>`;
-            });
+            .then(prayers => renderCalendar(year, month, prayers));
     }
 
     function renderCalendar(year, month, prayers) {
@@ -275,18 +378,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function showDayDetails(dateKey, prayers) {
         dayDetails.classList.remove("hidden");
-        selectedDateTitle.textContent = `Prayers for ${dateKey}`;
+        selectedDateTitle.textContent = dateKey;
         selectedDayPrayers.innerHTML = "";
 
         if (prayers.length === 0) {
-            selectedDayPrayers.innerHTML = "<p>No data recorded.</p>";
+            selectedDayPrayers.innerHTML = `<p>${translations[currentLang].no_data}</p>`;
             return;
         }
 
         prayers.forEach(p => {
             const pDiv = document.createElement("div");
             const icon = p.completed ? "✅" : "❌";
-            pDiv.textContent = `${p.prayerName}: ${icon}`;
+            const tName = translations[currentLang].prayers[p.prayerName] || p.prayerName;
+            pDiv.textContent = `${tName}: ${icon}`;
             pDiv.style.color = p.completed ? "green" : "red";
             selectedDayPrayers.appendChild(pDiv);
         });
@@ -298,7 +402,7 @@ document.addEventListener("DOMContentLoaded", () => {
     viewSummaryButton.addEventListener("click", () => {
         appContainer.classList.add("hidden");
         weeklyContainer.classList.add("hidden");
-        settingsContainer.classList.add("hidden"); // Hide settings
+        settingsContainer.classList.add("hidden");
         summaryContainer.classList.remove("hidden");
         currentMonthlyDate = new Date();
         currentMonthlyDate.setDate(1); 
@@ -308,13 +412,12 @@ document.addEventListener("DOMContentLoaded", () => {
     viewWeeklyButton.addEventListener("click", () => {
         appContainer.classList.add("hidden");
         summaryContainer.classList.add("hidden");
-        settingsContainer.classList.add("hidden"); // Hide settings
+        settingsContainer.classList.add("hidden");
         weeklyContainer.classList.remove("hidden");
         setToCurrentWeekSunday();
         updateWeeklyView();
     });
 
-    // NEW: View Settings
     viewSettingsButton.addEventListener("click", () => {
         appContainer.classList.add("hidden");
         summaryContainer.classList.add("hidden");
@@ -322,7 +425,6 @@ document.addEventListener("DOMContentLoaded", () => {
         settingsContainer.classList.remove("hidden");
     });
 
-    // Back Buttons
     backToPrayersButton.addEventListener("click", () => {
         summaryContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
@@ -333,14 +435,12 @@ document.addEventListener("DOMContentLoaded", () => {
         appContainer.classList.remove("hidden");
         loadPrayers();
     });
-    // NEW: Back from Settings
     backFromSettingsButton.addEventListener("click", () => {
         settingsContainer.classList.add("hidden");
         appContainer.classList.remove("hidden");
         loadPrayers();
     });
 
-    // Navigation Buttons
     prevWeekBtn.addEventListener("click", () => {
         currentWeeklyStartDate.setDate(currentWeeklyStartDate.getDate() - 7);
         updateWeeklyView();
@@ -358,7 +458,6 @@ document.addEventListener("DOMContentLoaded", () => {
         updateMonthlyView();
     });
 
-    // Form Handlers
     loginForm.addEventListener("submit", (event) => {
         event.preventDefault();
         const formData = new URLSearchParams();
@@ -373,7 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(data => {
             authContainer.classList.add("hidden");
             appContainer.classList.remove("hidden");
-            welcomeMessage.textContent = `Welcome, ${data.username}!`;
+            welcomeMessage.textContent = `${translations[currentLang].welcome}, ${data.username}!`;
             loadPrayers(); 
         })
         .catch(error => {
@@ -411,7 +510,6 @@ document.addEventListener("DOMContentLoaded", () => {
         .catch(err => console.error(err));
     });
 
-    // NEW: Telegram Settings Handlers
     telegramForm.addEventListener("submit", (event) => {
         event.preventDefault();
         const chatId = telegramChatId.value;
@@ -421,13 +519,8 @@ document.addEventListener("DOMContentLoaded", () => {
         fetch("/api/telegram/link", { method: "POST", body: formData })
         .then(response => response.json())
         .then(data => {
-            if (data.status === "success") {
-                telegramMessage.style.color = "green";
-                telegramMessage.textContent = data.message;
-            } else {
-                telegramMessage.style.color = "red";
-                telegramMessage.textContent = data.message;
-            }
+            telegramMessage.style.color = data.status === "success" ? "green" : "red";
+            telegramMessage.textContent = data.message;
         });
     });
 

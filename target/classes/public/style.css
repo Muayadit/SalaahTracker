@@ -1,10 +1,53 @@
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Cleaner font for English & Arabic */
     background-color: #f4f4f4;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 20px;
+    flex-direction: column; /* To stack language button */
+}
+
+/* RTL Support */
+[dir="rtl"] {
+    text-align: right;
+}
+[dir="rtl"] .week-nav, 
+[dir="rtl"] .prayer-item, 
+[dir="rtl"] .weekly-day-row {
+    flex-direction: row-reverse;
+}
+[dir="rtl"] #back-to-prayers-button, 
+[dir="rtl"] #back-from-weekly-button, 
+[dir="rtl"] #back-from-settings-button {
+    /* Flip arrow direction for buttons if needed, usually text handles it */
+}
+[dir="rtl"] .prayer-item input[type="checkbox"] {
+    margin-right: 0;
+    margin-left: 12px;
+}
+[dir="rtl"] .weekly-date-col {
+    border-right: none;
+    border-left: 2px solid rgba(0,0,0,0.1);
+    margin-right: 0;
+    margin-left: 15px;
+}
+
+/* Language Button */
+.lang-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: auto;
+    padding: 5px 10px;
+    background: transparent;
+    color: #555;
+    border: 1px solid #ccc;
+    font-size: 14px;
+}
+[dir="rtl"] .lang-btn {
+    right: auto;
+    left: 10px;
 }
 
 #auth-container, #app-container, #summary-container, #weekly-container, #settings-container {
@@ -13,13 +56,14 @@ body {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     width: 600px;
+    position: relative; /* For layout context */
 }
 
 h2, h3 { text-align: center; color: #333; }
 hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
 
 input[type="text"], input[type="password"], input[type="week"] {
-    width: calc(100% - 20px);
+    width: calc(100% - 22px); /* Adjusted for padding */
     padding: 10px;
     margin-bottom: 10px;
     border: 1px solid #ddd;
@@ -45,17 +89,8 @@ button:hover { background-color: #0056b3; }
 }
 
 /* SETTINGS BOX */
-.settings-box {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 5px;
-    border: 1px solid #eee;
-}
-.settings-box p {
-    font-size: 14px;
-    margin-bottom: 10px;
-    color: #555;
-}
+.settings-box { background: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #eee; }
+.settings-box p { font-size: 14px; margin-bottom: 10px; color: #555; }
 
 /* WEEK NAV */
 .week-nav {
