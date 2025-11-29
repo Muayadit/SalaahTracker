@@ -1,6 +1,6 @@
 {
-  "name": "Salaah Tracker",
-  "short_name": "Salaah Tracker",
+  "name": "My Salaah Journal",
+  "short_name": "Salaah Journal",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f4f4",
