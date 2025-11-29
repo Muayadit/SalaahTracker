@@ -24,7 +24,7 @@ public class PrayerTimesService {
 
     public Map<String, LocalTime> getPrayerTimes(String city, String country) {
         try {
-            String url = String.format("http://api.aladhan.com/v1/timingsByCity?city=%s&country=%s&method=4", city, country);
+            String url = String.format("https://api.aladhan.com/v1/timingsByCity?city=%s&country=%s&method=4", city, country);
             url = url.replace(" ", "%20");
 
             HttpRequest request = HttpRequest.newBuilder()
