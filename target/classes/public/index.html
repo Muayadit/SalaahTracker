@@ -2,12 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- FIX ZOOM: This prevents the 'pinch to zoom' and auto-zoom behavior -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
-    <!-- UPDATED NAME -->
     <title>My Salaah Journal</title>
-    
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#007bff">
@@ -15,24 +11,29 @@
 </head>
 <body>
 
+    <!-- LANGUAGE BUTTON -->
+    <div style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
+        <button id="lang-toggle" style="width: auto; padding: 5px 10px; font-size: 12px;">English / العربية</button>
+    </div>
+
     <div id="auth-container">
-        <h2>My Salaah Journal</h2>
+        <h2 data-i18n="app_title">My Salaah Journal</h2>
         
         <form id="login-form">
-            <h3>Login</h3>
-            <input type="text" id="login-username" placeholder="Username" required>
-            <input type="password" id="login-password" placeholder="Password" required>
-            <button type="submit">Login</button>
+            <h3 data-i18n="login">Login</h3>
+            <input type="text" id="login-username" data-i18n-placeholder="username" placeholder="Username" required>
+            <input type="password" id="login-password" data-i18n-placeholder="password" placeholder="Password" required>
+            <button type="submit" data-i18n="login">Login</button>
             <p id="login-message" class="error-message"></p>
         </form>
 
         <hr>
 
         <form id="register-form">
-            <h3>Register</h3>
-            <input type="text" id="register-username" placeholder="Username" required>
-            <input type="password" id="register-password" placeholder="Password" required>
-            <button type="submit">Register</button>
+            <h3 data-i18n="register">Register</h3>
+            <input type="text" id="register-username" data-i18n-placeholder="username" placeholder="Username" required>
+            <input type="password" id="register-password" data-i18n-placeholder="password" placeholder="Password" required>
+            <button type="submit" data-i18n="register">Register</button>
             <p id="register-message" class="success-message"></p>
         </form>
     </div>
@@ -40,28 +41,34 @@
     <div id="app-container" class="hidden">
         <h2 id="welcome-message"></h2>
         
-        <button id="view-summary-button">View Monthly Calendar</button>
-        <button id="view-weekly-button">View Weekly Summary</button>
-        <button id="view-settings-button" style="background-color: #28a745;">🔔 Notification Settings</button>
-        <button id="logout-button" style="background-color: #dc3545; margin-top: 10px;">Logout</button>
+        <button id="view-summary-button" data-i18n="view_monthly">View Monthly Calendar</button>
+        <button id="view-weekly-button" data-i18n="view_weekly">View Weekly Summary</button>
+        <button id="view-settings-button" style="background-color: #28a745;" data-i18n="notif_settings">🔔 Notification Settings</button>
+        <button id="logout-button" style="background-color: #dc3545; margin-top: 10px;" data-i18n="logout">Logout</button>
         
         <hr>
         
-        <h3>Your Prayers for Today</h3>
+        <h3 data-i18n="prayers_today">Your Prayers for Today</h3>
         <div id="prayer-list"></div>
     </div>
 
     <div id="summary-container" class="hidden">
-        <button id="back-to-prayers-button">&larr; Back to Today</button>
-        <h2>Monthly Calendar</h2>
+        <button id="back-to-prayers-button" data-i18n="back_today">&larr; Back to Today</button>
+        <h2 data-i18n="monthly_calendar">Monthly Calendar</h2>
         <div class="week-nav">
-            <button id="prev-month-btn">&larr; Prev</button>
+            <button id="prev-month-btn" data-i18n="prev">&larr; Prev</button>
             <span id="current-month-label">Loading...</span>
-            <button id="next-month-btn">Next &rarr;</button>
+            <button id="next-month-btn" data-i18n="next">Next &rarr;</button>
         </div>
         <div class="calendar-wrapper">
             <div class="calendar-header">
-                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                <div data-i18n="sun">Sun</div>
+                <div data-i18n="mon">Mon</div>
+                <div data-i18n="tue">Tue</div>
+                <div data-i18n="wed">Wed</div>
+                <div data-i18n="thu">Thu</div>
+                <div data-i18n="fri">Fri</div>
+                <div data-i18n="sat">Sat</div>
             </div>
             <div id="calendar-grid" class="calendar-grid"></div>
         </div>
@@ -72,30 +79,30 @@
     </div>
 
     <div id="weekly-container" class="hidden">
-        <button id="back-from-weekly-button">&larr; Back to Today</button>
-        <h2>Weekly Summary</h2>
+        <button id="back-from-weekly-button" data-i18n="back_today">&larr; Back to Today</button>
+        <h2 data-i18n="weekly_summary">Weekly Summary</h2>
         <div class="week-nav">
-            <button id="prev-week-btn">&larr; Prev</button>
+            <button id="prev-week-btn" data-i18n="prev">&larr; Prev</button>
             <span id="current-week-label">Loading...</span>
-            <button id="next-week-btn">Next &rarr;</button>
+            <button id="next-week-btn" data-i18n="next">Next &rarr;</button>
         </div>
         <div id="weekly-list"></div>
     </div>
 
     <div id="settings-container" class="hidden">
-        <button id="back-from-settings-button">&larr; Back to Today</button>
-        <h2>Notifications</h2>
+        <button id="back-from-settings-button" data-i18n="back_today">&larr; Back to Today</button>
+        <h2 data-i18n="notifications">Notifications</h2>
         <div class="settings-box">
-            <p>1. Open Telegram and search for <strong>@userinfobot</strong>.</p>
-            <p>2. Click Start. It will give you a number (ID).</p>
-            <p>3. Paste that number below:</p>
+            <p data-i18n="step1">1. Open Telegram and search for <strong>@userinfobot</strong>.</p>
+            <p data-i18n="step2">2. Click Start. It will give you a number (ID).</p>
+            <p data-i18n="step3">3. Paste that number below:</p>
             <form id="telegram-form">
                 <input type="text" id="telegram-chat-id" placeholder="e.g. 123456789" required>
-                <button type="submit">Connect Telegram</button>
+                <button type="submit" data-i18n="connect_telegram">Connect Telegram</button>
             </form>
             <p id="telegram-message"></p>
             <hr>
-            <button id="test-telegram-btn" style="background-color: #17a2b8;">Send Test Message</button>
+            <button id="test-telegram-btn" style="background-color: #17a2b8;" data-i18n="send_test">Send Test Message</button>
         </div>
     </div>
 
