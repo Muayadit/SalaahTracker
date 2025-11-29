@@ -12,7 +12,7 @@ public class App {
         dbManager.initializeDatabase();
 
         TelegramBot bot = new TelegramBot();
-        PrayerTimesService prayerService = new PrayerTimesService(); // <--- NEW
+        PrayerTimesService prayerService = new PrayerTimesService();
 
         var app = Javalin.create(config -> {
             config.staticFiles.add("public");
@@ -166,9 +166,8 @@ public class App {
             }
         });
 
-        // --- NEW SMART AUTO-REMINDER ---
-        // Usage: /api/check-reminders?city=Jeddah&country=SA
-        // This should be called by a Cron Job every 15 minutes
+        // --- PRECISE 1-MINUTE REMINDER ---
+        // This is called every minute by Cron-Job.org
         app.get("/api/check-reminders", ctx -> {
             String city = ctx.queryParam("city");
             String country = ctx.queryParam("country");
@@ -178,44 +177,69 @@ public class App {
                 return;
             }
 
-            // 1. Get Live Prayer Times
             Map<String, LocalTime> timings = prayerService.getPrayerTimes(city, country);
-            
             if (timings == null) {
                 ctx.result("Could not fetch prayer times.");
                 return;
             }
 
-            // 2. Check if ANY prayer is coming up in 20 minutes
-            // This returns "Maghrib" if Maghrib is in 20 mins
-            String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, 20);
+            StringBuilder log = new StringBuilder();
+            LocalTime now = LocalTime.now();
 
-            if (upcomingPrayer != null) {
-                // 3. Determine the PREVIOUS prayer we need to check
-                // If Maghrib is coming, we check if user prayed Asr.
+            // Iterate over all prayers to check their timing
+            for (Map.Entry<String, LocalTime> entry : timings.entrySet()) {
+                String prayerName = entry.getKey();
+                LocalTime prayerTime = entry.getValue();
+
+                // Calculate minutes remaining
+                long minutesLeft = java.time.Duration.between(now, prayerTime).toMinutes();
+
+                // Determine previous prayer to check status
                 String prayerToCheck = "";
-                switch (upcomingPrayer) {
+                switch (prayerName) {
                     case "Dhuhr": prayerToCheck = "Fajr"; break;
                     case "Asr": prayerToCheck = "Dhuhr"; break;
                     case "Maghrib": prayerToCheck = "Asr"; break;
                     case "Isha": prayerToCheck = "Maghrib"; break;
-                    // We typically don't remind for Isha before Fajr as people are sleeping
                     default: prayerToCheck = null; 
                 }
 
+                // If it is time for a reminder AND we have a previous prayer to check
                 if (prayerToCheck != null) {
-                    // 4. Find users who missed it
-                    List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
                     
-                    for (String chatId : chatIds) {
-                        bot.sendMessage(chatId, "⚠️ " + upcomingPrayer + " is in 20 minutes! Have you prayed " + prayerToCheck + "?");
+                    // Trigger 1: Exactly 20 minutes left
+                    if (minutesLeft == 20) {
+                        List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
+                        for (String chatId : chatIds) {
+                            bot.sendMessage(chatId, "ℹ️ " + prayerName + " is in 20 minutes. Have you prayed " + prayerToCheck + "?");
+                        }
+                        log.append("Sent 20m warning for " + prayerToCheck + ". ");
                     }
-                    ctx.result("Sent reminders for " + prayerToCheck + " (Upcoming: " + upcomingPrayer + ")");
-                } else {
-                    ctx.result("Upcoming prayer found (" + upcomingPrayer + "), but no previous prayer logic defined.");
+                    
+                    // Trigger 2: Exactly 10 minutes left
+                    else if (minutesLeft == 10) {
+                        List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
+                        for (String chatId : chatIds) {
+                            bot.sendMessage(chatId, "⚠️ " + prayerName + " is in 10 minutes! Please pray " + prayerToCheck + " now.");
+                        }
+                        log.append("Sent 10m warning for " + prayerToCheck + ". ");
+                    }
+
+                    // Trigger 3: Exactly 5 minutes left
+                    else if (minutesLeft == 5) {
+                        List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
+                        for (String chatId : chatIds) {
+                            bot.sendMessage(chatId, "🚨 URGENT: " + prayerName + " is in 5 minutes! Pray " + prayerToCheck + " immediately!");
+                        }
+                        log.append("Sent 5m warning for " + prayerToCheck + ". ");
+                    }
                 }
+            }
+
+            if (log.length() == 0) {
+                ctx.result("Checked. No alerts needed.");
             } else {
-                ctx.result("No prayers upcoming in the next 20 mins.");
+                ctx.result(log.toString());
             }
         });
 
