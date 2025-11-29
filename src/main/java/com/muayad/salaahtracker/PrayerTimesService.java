@@ -5,8 +5,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.TreeMap;
@@ -14,18 +15,16 @@ import java.util.TreeMap;
 public class PrayerTimesService {
 
     private final HttpClient httpClient;
+    // We will store the timezone from the API here (e.g., "Asia/Riyadh")
+    private String detectedTimezone = "UTC"; 
 
     public PrayerTimesService() {
         this.httpClient = HttpClient.newHttpClient();
     }
 
-    // Fetches today's prayer times for a specific City
     public Map<String, LocalTime> getPrayerTimes(String city, String country) {
         try {
-            // Build the URL (Method 4 = Umm Al-Qura, Makkah)
             String url = String.format("http://api.aladhan.com/v1/timingsByCity?city=%s&country=%s&method=4", city, country);
-            
-            // Allow spaces in city names (e.g. "New York")
             url = url.replace(" ", "%20");
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -35,19 +34,24 @@ public class PrayerTimesService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            // Parse the JSON response
             JSONObject json = new JSONObject(response.body());
-            JSONObject timings = json.getJSONObject("data").getJSONObject("timings");
+            JSONObject data = json.getJSONObject("data");
+            JSONObject timings = data.getJSONObject("timings");
+            
+            // 1. CAPTURE THE TIMEZONE
+            JSONObject meta = data.getJSONObject("meta");
+            this.detectedTimezone = meta.getString("timezone");
+            // System.out.println("Detected Timezone: " + this.detectedTimezone); // Debug
 
-            // Store times in a Map (Prayer Name -> LocalTime)
             Map<String, LocalTime> prayerMap = new TreeMap<>();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
-            prayerMap.put("Fajr", LocalTime.parse(timings.getString("Fajr"), formatter));
-            prayerMap.put("Dhuhr", LocalTime.parse(timings.getString("Dhuhr"), formatter));
-            prayerMap.put("Asr", LocalTime.parse(timings.getString("Asr"), formatter));
-            prayerMap.put("Maghrib", LocalTime.parse(timings.getString("Maghrib"), formatter));
-            prayerMap.put("Isha", LocalTime.parse(timings.getString("Isha"), formatter));
+            // 2. SAFE PARSING (Remove " (AST)" suffixes if present)
+            prayerMap.put("Fajr", parseTime(timings.getString("Fajr"), formatter));
+            prayerMap.put("Dhuhr", parseTime(timings.getString("Dhuhr"), formatter));
+            prayerMap.put("Asr", parseTime(timings.getString("Asr"), formatter));
+            prayerMap.put("Maghrib", parseTime(timings.getString("Maghrib"), formatter));
+            prayerMap.put("Isha", parseTime(timings.getString("Isha"), formatter));
 
             return prayerMap;
 
@@ -57,26 +61,25 @@ public class PrayerTimesService {
         }
     }
 
-    /**
-     * Checks if we are roughly 'minutesBefore' minutes away from a prayer.
-     * Returns the name of the UPCOMING prayer if true.
-     */
-    public String getUpcomingPrayerName(Map<String, LocalTime> timings, int minutesBefore) {
-        LocalTime now = LocalTime.now(); 
-        // Note: This uses the Server's time. 
-        // For Render, this is usually UTC. We might need to adjust for Saudi time (UTC+3) logic later 
-        // or ensure the server timezone is set. For now, we assume simple comparison.
+    private LocalTime parseTime(String timeStr, DateTimeFormatter formatter) {
+        // Aladhan sometimes returns "05:23 (AST)". We only want "05:23".
+        String cleanTime = timeStr.split(" ")[0]; 
+        return LocalTime.parse(cleanTime, formatter);
+    }
+
+    public String getUpcomingPrayerName(Map<String, LocalTime> timings, int minMinutes, int maxMinutes) {
+        // 3. USE THE DETECTED TIMEZONE
+        // This ensures the server uses "Jeddah Time", not "Server Time"
+        ZoneId zoneId = ZoneId.of(this.detectedTimezone);
+        LocalTime now = ZonedDateTime.now(zoneId).toLocalTime(); 
 
         for (Map.Entry<String, LocalTime> entry : timings.entrySet()) {
             String prayerName = entry.getKey();
             LocalTime prayerTime = entry.getValue();
 
-            // Check the gap
-            // If Now is 17:00 and Maghrib is 17:20, the gap is 20 mins.
-            // We give a small buffer window (e.g., between 18 and 22 mins) so the cron job doesn't miss it.
             long diff = java.time.Duration.between(now, prayerTime).toMinutes();
 
-            if (diff >= (minutesBefore - 2) && diff <= (minutesBefore + 2)) {
+            if (diff > minMinutes && diff <= maxMinutes) {
                 return prayerName;
             }
         }
