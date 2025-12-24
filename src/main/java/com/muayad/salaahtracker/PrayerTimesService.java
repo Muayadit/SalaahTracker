@@ -24,29 +24,44 @@ public class PrayerTimesService {
 
     public Map<String, LocalTime> getPrayerTimes(String city, String country) {
         try {
-            String url = String.format("https://api.aladhan.com/v1/timingsByCity?city=%s&country=%s&method=4", city, country);
-            url = url.replace(" ", "%20");
+            // Ensure spaces are encoded (e.g. "Saudi Arabia" -> "Saudi%20Arabia")
+            String cleanCity = city.trim().replace(" ", "%20");
+            String cleanCountry = country.trim().replace(" ", "%20");
+
+            // CRITICAL FIX: Changed http to https
+            String url = String.format("https://api.aladhan.com/v1/timingsByCity?city=%s&country=%s&method=4", cleanCity, cleanCountry);
+            
+            System.out.println("Fetching URL: " + url); // Debug URL
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
+                    // Add User-Agent just in case they block Java default agents
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
                     .GET()
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String responseBody = response.body();
 
-            JSONObject json = new JSONObject(response.body());
+            // Debug logs to see what's happening
+            System.out.println("API Status: " + response.statusCode());
+            // System.out.println("API Raw Response: " + responseBody); 
+
+            if (response.statusCode() != 200) {
+                System.err.println("API Returned Error Code: " + response.statusCode());
+                return null;
+            }
+
+            JSONObject json = new JSONObject(responseBody);
             JSONObject data = json.getJSONObject("data");
             JSONObject timings = data.getJSONObject("timings");
             
-            // 1. CAPTURE THE TIMEZONE
             JSONObject meta = data.getJSONObject("meta");
             this.detectedTimezone = meta.getString("timezone");
-            // System.out.println("Detected Timezone: " + this.detectedTimezone); // Debug
 
             Map<String, LocalTime> prayerMap = new TreeMap<>();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
-            // 2. SAFE PARSING (Remove " (AST)" suffixes if present)
             prayerMap.put("Fajr", parseTime(timings.getString("Fajr"), formatter));
             prayerMap.put("Dhuhr", parseTime(timings.getString("Dhuhr"), formatter));
             prayerMap.put("Asr", parseTime(timings.getString("Asr"), formatter));
@@ -56,7 +71,8 @@ public class PrayerTimesService {
             return prayerMap;
 
         } catch (Exception e) {
-            System.err.println("Error fetching prayer times: " + e.getMessage());
+            System.err.println("CRASH in getPrayerTimes: " + e.getMessage());
+            e.printStackTrace(); 
             return null;
         }
     }
@@ -68,8 +84,7 @@ public class PrayerTimesService {
     }
 
     public String getUpcomingPrayerName(Map<String, LocalTime> timings, int minMinutes, int maxMinutes) {
-        // 3. USE THE DETECTED TIMEZONE
-        // This ensures the server uses "Jeddah Time", not "Server Time"
+        // Use the API's timezone to ensure we are calculating "local time" correctly
         ZoneId zoneId = ZoneId.of(this.detectedTimezone);
         LocalTime now = ZonedDateTime.now(zoneId).toLocalTime(); 
 
