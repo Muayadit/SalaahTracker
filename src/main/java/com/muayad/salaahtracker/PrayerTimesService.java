@@ -19,7 +19,9 @@ public class PrayerTimesService {
     private String detectedTimezone = "UTC"; 
 
     public PrayerTimesService() {
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.ALWAYS) 
+                .build();
     }
 
     public Map<String, LocalTime> getPrayerTimes(String city, String country) {
