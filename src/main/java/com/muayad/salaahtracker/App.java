@@ -166,8 +166,7 @@ public class App {
             }
         });
 
-        // --- PRECISE 1-MINUTE REMINDER ---
-        // This is called every minute by Cron-Job.org
+        // --- SMART MULTI-REMINDER (UPDATED LOGIC) ---
         app.get("/api/check-reminders", ctx -> {
             String city = ctx.queryParam("city");
             String country = ctx.queryParam("country");
@@ -177,67 +176,71 @@ public class App {
                 return;
             }
 
+            // 1. Get Live Prayer Times
             Map<String, LocalTime> timings = prayerService.getPrayerTimes(city, country);
+            
             if (timings == null) {
                 ctx.result("Could not fetch prayer times.");
                 return;
             }
 
             StringBuilder log = new StringBuilder();
-            LocalTime now = LocalTime.now();
 
-            // Iterate over all prayers to check their timing
-            for (Map.Entry<String, LocalTime> entry : timings.entrySet()) {
-                String prayerName = entry.getKey();
-                LocalTime prayerTime = entry.getValue();
+            // 3 Buckets for different warning levels
+            int[][] buckets = {
+                {15, 20}, // 20m warning
+                {5, 10},  // 10m warning
+                {0, 5}    // 5m warning
+            };
 
-                // Calculate minutes remaining
-                long minutesLeft = java.time.Duration.between(now, prayerTime).toMinutes();
+            for (int[] bucket : buckets) {
+                int min = bucket[0];
+                int max = bucket[1];
 
-                // Determine previous prayer to check status
-                String prayerToCheck = "";
-                switch (prayerName) {
-                    case "Dhuhr": prayerToCheck = "Fajr"; break;
-                    case "Asr": prayerToCheck = "Dhuhr"; break;
-                    case "Maghrib": prayerToCheck = "Asr"; break;
-                    case "Isha": prayerToCheck = "Maghrib"; break;
-                    default: prayerToCheck = null; 
-                }
+                // Check if ANY prayer is in this specific time bucket
+                String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, min, max);
 
-                // If it is time for a reminder AND we have a previous prayer to check
-                if (prayerToCheck != null) {
-                    
-                    // Trigger 1: Exactly 20 minutes left
-                    if (minutesLeft == 20) {
-                        List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
-                        for (String chatId : chatIds) {
-                            bot.sendMessage(chatId, "ℹ️ " + prayerName + " is in 20 minutes. Have you prayed " + prayerToCheck + "?");
-                        }
-                        log.append("Sent 20m warning for " + prayerToCheck + ". ");
-                    }
-                    
-                    // Trigger 2: Exactly 10 minutes left
-                    else if (minutesLeft == 10) {
-                        List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
-                        for (String chatId : chatIds) {
-                            bot.sendMessage(chatId, "⚠️ " + prayerName + " is in 10 minutes! Please pray " + prayerToCheck + " now.");
-                        }
-                        log.append("Sent 10m warning for " + prayerToCheck + ". ");
+                if (upcomingPrayer != null) {
+                    // Determine which prayer we should have already prayed (The PREVIOUS one)
+                    String prayerToCheck = "";
+                    switch (upcomingPrayer) {
+                        case "Dhuhr": prayerToCheck = "Fajr"; break;
+                        case "Asr": prayerToCheck = "Dhuhr"; break;
+                        case "Maghrib": prayerToCheck = "Asr"; break;
+                        case "Isha": prayerToCheck = "Maghrib"; break;
+                        default: prayerToCheck = null; 
                     }
 
-                    // Trigger 3: Exactly 5 minutes left
-                    else if (minutesLeft == 5) {
+                    // Only send reminder if we have a previous prayer to check
+                    if (prayerToCheck != null) {
                         List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
+                        
                         for (String chatId : chatIds) {
-                            bot.sendMessage(chatId, "🚨 URGENT: " + prayerName + " is in 5 minutes! Pray " + prayerToCheck + " immediately!");
+                            String msg = "";
+                            
+                            // Updated Messages for Clarity
+                            if (max == 20) {
+                                msg = "ℹ️ REMINDER: " + upcomingPrayer + " starts in 20 mins.\n" +
+                                      "Have you prayed " + prayerToCheck + " yet?";
+                            }
+                            else if (max == 10) {
+                                msg = "⚠️ WARNING: Time for " + prayerToCheck + " is ending!\n" +
+                                      upcomingPrayer + " begins in 10 minutes.";
+                            }
+                            else if (max == 5) {
+                                msg = "🚨 URGENT: " + prayerToCheck + " will be missed in less than 5 minutes!\n" +
+                                      "Pray before " + upcomingPrayer + " starts.";
+                            }
+                            
+                            bot.sendMessage(chatId, msg);
                         }
-                        log.append("Sent 5m warning for " + prayerToCheck + ". ");
+                        log.append("Sent " + max + "m warning for " + prayerToCheck + ". ");
                     }
                 }
             }
 
             if (log.length() == 0) {
-                ctx.result("Checked. No alerts needed.");
+                ctx.result("No reminders needed right now.");
             } else {
                 ctx.result(log.toString());
             }
