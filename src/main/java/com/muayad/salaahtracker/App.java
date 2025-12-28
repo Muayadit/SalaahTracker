@@ -166,7 +166,7 @@ public class App {
             }
         });
 
-        // --- SMART MULTI-REMINDER (UPDATED LOGIC) ---
+        // --- EXACT MINUTE REMINDERS ---
         app.get("/api/check-reminders", ctx -> {
             String city = ctx.queryParam("city");
             String country = ctx.queryParam("country");
@@ -176,7 +176,7 @@ public class App {
                 return;
             }
 
-            // 1. Get Live Prayer Times
+            // 1. Get Prayer Times (Cached)
             Map<String, LocalTime> timings = prayerService.getPrayerTimes(city, country);
             
             if (timings == null) {
@@ -186,19 +186,12 @@ public class App {
 
             StringBuilder log = new StringBuilder();
 
-            // 3 Buckets for different warning levels
-            int[][] buckets = {
-                {15, 20}, // 20m warning
-                {5, 10},  // 10m warning
-                {0, 5}    // 5m warning
-            };
+            // 2. Exact Milestones to check (Must enable 1-minute cron job)
+            int[] milestones = {20, 10, 5};
 
-            for (int[] bucket : buckets) {
-                int min = bucket[0];
-                int max = bucket[1];
-
-                // Check if ANY prayer is in this specific time bucket
-                String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, min, max);
+            for (int minutes : milestones) {
+                // Check if ANY prayer is EXACTLY 'minutes' away
+                String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, minutes);
 
                 if (upcomingPrayer != null) {
                     // Determine which prayer we should have already prayed (The PREVIOUS one)
@@ -211,36 +204,34 @@ public class App {
                         default: prayerToCheck = null; 
                     }
 
-                    // Only send reminder if we have a previous prayer to check
                     if (prayerToCheck != null) {
                         List<String> chatIds = dbManager.getChatIdsForMissingPrayer(prayerToCheck, LocalDate.now());
                         
                         for (String chatId : chatIds) {
                             String msg = "";
                             
-                            // Updated Messages for Clarity
-                            if (max == 20) {
-                                msg = "ℹ️ REMINDER: " + upcomingPrayer + " starts in 20 mins.\n" +
+                            if (minutes == 20) {
+                                msg = "ℹ️ REMINDER: " + upcomingPrayer + " starts in exactly 20 mins.\n" +
                                       "Have you prayed " + prayerToCheck + " yet?";
                             }
-                            else if (max == 10) {
+                            else if (minutes == 10) {
                                 msg = "⚠️ WARNING: Time for " + prayerToCheck + " is ending!\n" +
                                       upcomingPrayer + " begins in 10 minutes.";
                             }
-                            else if (max == 5) {
+                            else if (minutes == 5) {
                                 msg = "🚨 URGENT: " + prayerToCheck + " will be missed in less than 5 minutes!\n" +
                                       "Pray before " + upcomingPrayer + " starts.";
                             }
                             
                             bot.sendMessage(chatId, msg);
                         }
-                        log.append("Sent " + max + "m warning for " + prayerToCheck + ". ");
+                        log.append("Sent " + minutes + "m warning for " + prayerToCheck + ". ");
                     }
                 }
             }
 
             if (log.length() == 0) {
-                ctx.result("No reminders needed right now.");
+                ctx.result("Checked. No exact reminders needed right now.");
             } else {
                 ctx.result(log.toString());
             }

@@ -8,19 +8,23 @@ import java.time.Duration;
 
 public class TelegramBot {
 
-    // REPLACE THIS WITH YOUR ACTUAL TOKEN FROM BOTFATHER
-    private static final String BOT_TOKEN = "8264445809:AAF4AG9uCLEAsgUR1Gi6TEUVJnVmCKa2X_A"; 
+    // SECURE FIX: Read from Environment Variable
+    private static final String BOT_TOKEN = System.getenv("TELEGRAM_BOT_TOKEN");
     
     private static final String TELEGRAM_API_URL = "https://api.telegram.org/bot" + BOT_TOKEN;
     private final HttpClient httpClient;
 
     public TelegramBot() {
+        // Safety check: specific error if token is missing
+        if (BOT_TOKEN == null || BOT_TOKEN.isEmpty()) {
+            System.err.println("❌ FATAL ERROR: TELEGRAM_BOT_TOKEN is missing from Environment Variables!");
+        }
+
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
     }
 
-    // This method sends a message to a specific user
     public void sendMessage(String chatId, String text) {
         if (chatId == null || chatId.isEmpty()) {
             System.out.println("Cannot send Telegram message: Chat ID is empty.");
@@ -28,9 +32,7 @@ public class TelegramBot {
         }
 
         try {
-            // We manually build the JSON payload to avoid library dependency issues
-            // Format: {"chat_id": "12345", "text": "Hello"}
-            // We escape quotes in the text to prevent errors
+            // Escape quotes to prevent JSON errors
             String safeText = text.replace("\"", "\\\"").replace("\n", "\\n");
             String jsonPayload = String.format("{\"chat_id\":\"%s\",\"text\":\"%s\"}", chatId, safeText);
 
@@ -40,11 +42,10 @@ public class TelegramBot {
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
 
-            // Send async so we don't block the app while waiting for Telegram
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenApply(HttpResponse::body)
                     .thenAccept(response -> {
-                        System.out.println("Telegram Response: " + response); // NOW IT WILL SPEAK!
+                        // System.out.println("Telegram Response: " + response); 
                     });
 
         } catch (Exception e) {
