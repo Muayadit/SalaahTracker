@@ -9,6 +9,7 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator; // Import added for sorting
 import java.util.List;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -48,7 +49,6 @@ public class DatabaseManager {
         + " telegram_chat_id TEXT" 
         + " );";
     
-        // UPDATED: Added UNIQUE constraint to prevent duplicate prayers
         String createPrayerLogTable = "CREATE TABLE IF NOT EXISTS prayer_log ("
         + " id " + idType + ","
         + " user_id INTEGER NOT NULL,"
@@ -168,11 +168,9 @@ public class DatabaseManager {
         List<PrayerLog> todayPrayers = new ArrayList<>();
         String dateString = date.toString();
         
-        // 1. Try to fetch existing prayers first
         String fetchPrayers = "SELECT * FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
         
         try (Connection conn = this.connect()) {
-            // First pass: check if they exist
             boolean prayersExist = false;
             try (PreparedStatement fetchstmt = conn.prepareStatement(fetchPrayers)) {
                 fetchstmt.setInt(1, userId);
@@ -190,10 +188,8 @@ public class DatabaseManager {
                 }
             }
 
-            // 2. If they don't exist, create them safely
             if (!prayersExist) {
                 List<String> the5Prayers = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
-                // INSERT OR IGNORE is SQLite specific, but standard INSERT works with our catch block
                 String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0)";
                 
                 try (PreparedStatement instmt = conn.prepareStatement(insertPrayers)){
@@ -204,21 +200,25 @@ public class DatabaseManager {
                             instmt.setString(3, dateString);
                             instmt.executeUpdate();
                         } catch (SQLException ex) {
-                            // Ignore duplicate errors silently
+                            // Ignore duplicates
                         }
                     }
                 }
-                // Recursively fetch them again now that they are created
                 return getPrayersForToday(userId, date); 
             }
 
         } catch (SQLException e) {
             System.out.println("Error managing daily prayers: " + e.getMessage());
         }
+
+        // --- NEW FIX: Force Sort by Islamic Order ---
+        List<String> correctOrder = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
+        todayPrayers.sort(Comparator.comparingInt(p -> correctOrder.indexOf(p.getPrayerName())));
+        // --------------------------------------------
+
         return todayPrayers;
      }
 
-     // === UPDATED: Allows setting status to TRUE (1) or FALSE (0) ===
      public void updatePrayerStatus(int prayerLogId, int userId, boolean isCompleted){
         String sql = "UPDATE prayer_log SET is_completed = ? WHERE id = ? AND user_id = ?";
         try (Connection conn = this.connect();

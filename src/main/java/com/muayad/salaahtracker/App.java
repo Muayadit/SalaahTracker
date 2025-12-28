@@ -70,7 +70,6 @@ public class App {
             ctx.contentType("application/json");
         });
 
-        // --- UPDATED: Toggle Prayer Status (Complete/Undo) ---
         app.put("/api/prayers/{id}", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser == null) {
@@ -81,7 +80,6 @@ public class App {
             }
             try {
                 int prayerLogId = Integer.parseInt(ctx.pathParam("id"));
-                // Read the desired status (true/false) from the URL
                 boolean isCompleted = Boolean.parseBoolean(ctx.queryParam("completed"));
                 
                 dbManager.updatePrayerStatus(prayerLogId, currentUser.getId(), isCompleted);
@@ -169,7 +167,7 @@ public class App {
             }
         });
 
-        // --- EXACT MINUTE REMINDERS ---
+        // --- EXACT MINUTE REMINDERS (UPDATED WITH SUNRISE LOGIC) ---
         app.get("/api/check-reminders", ctx -> {
             String city = ctx.queryParam("city");
             String country = ctx.queryParam("country");
@@ -190,12 +188,16 @@ public class App {
             int[] milestones = {20, 10, 5};
 
             for (int minutes : milestones) {
-                String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, minutes);
+                // Check if ANY event (Prayer OR Sunrise) is exactly 'minutes' away
+                String upcomingEvent = prayerService.getUpcomingPrayerName(timings, minutes);
 
-                if (upcomingPrayer != null) {
+                if (upcomingEvent != null) {
                     String prayerToCheck = "";
-                    switch (upcomingPrayer) {
-                        case "Dhuhr": prayerToCheck = "Fajr"; break;
+                    
+                    // --- ISLAMIC LOGIC UPDATE ---
+                    switch (upcomingEvent) {
+                        case "Sunrise": prayerToCheck = "Fajr"; break; // Warning for Fajr is before Sunrise
+                        case "Dhuhr": prayerToCheck = null; break; // No prayer ends exactly at Dhuhr
                         case "Asr": prayerToCheck = "Dhuhr"; break;
                         case "Maghrib": prayerToCheck = "Asr"; break;
                         case "Isha": prayerToCheck = "Maghrib"; break;
@@ -207,22 +209,23 @@ public class App {
                         
                         for (String chatId : chatIds) {
                             String msg = "";
+                            
                             if (minutes == 20) {
-                                msg = "ℹ️ REMINDER: " + upcomingPrayer + " starts in exactly 20 mins.\n" +
+                                msg = "ℹ️ REMINDER: " + upcomingEvent + " is in exactly 20 mins.\n" +
                                       "Have you prayed " + prayerToCheck + " yet?";
                             }
                             else if (minutes == 10) {
                                 msg = "⚠️ WARNING: Time for " + prayerToCheck + " is ending!\n" +
-                                      upcomingPrayer + " begins in 10 minutes.";
+                                      upcomingEvent + " begins in 10 minutes.";
                             }
                             else if (minutes == 5) {
                                 msg = "🚨 URGENT: " + prayerToCheck + " will be missed in less than 5 minutes!\n" +
-                                      "Pray before " + upcomingPrayer + " starts.";
+                                      "Pray before " + upcomingEvent + "!";
                             }
                             
                             bot.sendMessage(chatId, msg);
                         }
-                        log.append("Sent " + minutes + "m warning for " + prayerToCheck + ". ");
+                        log.append("Sent " + minutes + "m warning for " + prayerToCheck + " (due to " + upcomingEvent + "). ");
                     }
                 }
             }

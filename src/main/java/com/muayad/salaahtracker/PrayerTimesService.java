@@ -35,13 +35,12 @@ public class PrayerTimesService {
         LocalDate today = LocalDate.now();
 
         // 1. CHECK CACHE
-        // If we have data for today, for the same city/country, return it immediately without calling API.
         if (cachedTimings != null && today.equals(lastFetchDate) && 
             city.equalsIgnoreCase(lastCity) && country.equalsIgnoreCase(lastCountry)) {
             return cachedTimings;
         }
 
-        // 2. FETCH FROM API (If cache missed)
+        // 2. FETCH FROM API
         try {
             String cleanCity = city.trim().replace(" ", "%20");
             String cleanCountry = country.trim().replace(" ", "%20");
@@ -73,7 +72,9 @@ public class PrayerTimesService {
             Map<String, LocalTime> prayerMap = new TreeMap<>();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
+            // Added "Sunrise" here so we can track it!
             prayerMap.put("Fajr", parseTime(timings.getString("Fajr"), formatter));
+            prayerMap.put("Sunrise", parseTime(timings.getString("Sunrise"), formatter)); 
             prayerMap.put("Dhuhr", parseTime(timings.getString("Dhuhr"), formatter));
             prayerMap.put("Asr", parseTime(timings.getString("Asr"), formatter));
             prayerMap.put("Maghrib", parseTime(timings.getString("Maghrib"), formatter));
@@ -107,10 +108,8 @@ public class PrayerTimesService {
             String prayerName = entry.getKey();
             LocalTime prayerTime = entry.getValue();
 
-            // Calculate difference in minutes
-            long diff = Duration.between(now, prayerTime).toMinutes();
+            long diff = java.time.Duration.between(now, prayerTime).toMinutes();
 
-            // EXACT MATCH CHECK
             if (diff == exactMinute) {
                 return prayerName;
             }
