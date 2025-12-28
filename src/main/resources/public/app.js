@@ -181,25 +181,25 @@ document.addEventListener("DOMContentLoaded", () => {
                     checkbox.checked = prayer.completed;
                     checkbox.dataset.prayerId = prayer.id;
 
-                    if (prayer.completed) checkbox.disabled = true;
+                    // DISABLED LOGIC REMOVED FOR UNDO SUPPORT
 
                     checkbox.addEventListener('change', () => {
-                        if (checkbox.checked) {
-                            const prayerId = checkbox.dataset.prayerId;
-                            checkbox.disabled = true;
-                            fetch("/api/prayers/complete/" + prayerId, { method: "PUT" })
-                            .then(response => {
-                                if (!response.ok) throw new Error("Update failed");
-                                return response.json();
-                            })
-                            .then(data => console.log("Success:", data.message))
-                            .catch(err => {
-                                console.error(err);
-                                checkbox.disabled = false;
-                                checkbox.checked = false;
-                            });
-                        }
+                        const prayerId = checkbox.dataset.prayerId;
+                        const isChecked = checkbox.checked; // Capture true or false
+                        
+                        // Send PUT request with the new status
+                        fetch(`/api/prayers/${prayerId}?completed=${isChecked}`, { method: "PUT" })
+                        .then(response => {
+                            if (!response.ok) throw new Error("Update failed");
+                            return response.json();
+                        })
+                        .then(data => console.log("Success:", data.message))
+                        .catch(err => {
+                            console.error(err);
+                            checkbox.checked = !isChecked; // Revert checkbox if fail
+                        });
                     });
+                    
                     prayerElement.appendChild(checkbox);
                     prayerElement.appendChild(prayerName);
                     prayerList.appendChild(prayerElement);

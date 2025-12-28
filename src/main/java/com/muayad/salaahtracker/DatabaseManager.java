@@ -25,26 +25,22 @@ public class DatabaseManager {
     public Connection connect() {
         Connection conn = null;
         try {
-            // FIX 1: Explicitly load the SQLite driver class
-            // This forces the app to find the driver, even if the IDE is being stubborn.
             Class.forName("org.sqlite.JDBC"); 
-            
             conn = DriverManager.getConnection(getDatabaseUrl());
         } catch (ClassNotFoundException e) {
-            System.out.println("Driver Error: SQLite library is missing! Run 'mvn clean install'.");
+            System.out.println("Driver Error: SQLite library is missing!");
         } catch (SQLException e) {
             System.out.println("Connection Error: " + e.getMessage());
         }
         return conn;
     }
 
-    public void initializeDatabase() {
-        String idType = "SERIAL PRIMARY KEY";
+    public void initializeDatabase(){
+        String idType = "SERIAL PRIMARY KEY"; 
         if (getDatabaseUrl().contains("sqlite")) {
             idType = "INTEGER PRIMARY KEY AUTOINCREMENT";
         }
 
-        // ... (Table Strings remain the same: createUserTable, createPrayerLogTable) ...
         String createUserTable = "CREATE TABLE IF NOT EXISTS users ("
         + " id " + idType + ","
         + " username TEXT UNIQUE NOT NULL,"
@@ -52,16 +48,17 @@ public class DatabaseManager {
         + " telegram_chat_id TEXT" 
         + " );";
     
+        // UPDATED: Added UNIQUE constraint to prevent duplicate prayers
         String createPrayerLogTable = "CREATE TABLE IF NOT EXISTS prayer_log ("
         + " id " + idType + ","
         + " user_id INTEGER NOT NULL,"
         + " prayer_name TEXT NOT NULL,"
         + " prayer_date TEXT NOT NULL,"
         + " is_completed INTEGER NOT NULL DEFAULT 0,"
-        + " FOREIGN KEY (user_id) REFERENCES users (id)"
+        + " FOREIGN KEY (user_id) REFERENCES users (id),"
+        + " UNIQUE(user_id, prayer_name, prayer_date)" 
         + " );";
-
-        // FIX 2: Check if conn is null before using it to prevent the crash
+    
         try (Connection conn = this.connect()) {
             if (conn != null) {
                 try (Statement stmt = conn.createStatement()) {
@@ -73,7 +70,7 @@ public class DatabaseManager {
         } catch (SQLException e) {
             System.out.println("Init Error: " + e.getMessage());
         }
-    }
+     }
 
      public User searchUser(String username) {
         String sql = "SELECT * FROM users WHERE username = ?";
@@ -82,7 +79,6 @@ public class DatabaseManager {
             pstmt.setString(1, username);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
-                // UPDATED: Include telegram_chat_id
                 return new User(
                     rs.getInt("id"), 
                     rs.getString("username"), 
@@ -118,7 +114,6 @@ public class DatabaseManager {
                 if(rs.next()){
                     String storedHash = rs.getString("password");
                     if(BCrypt.checkpw(password, storedHash)){
-                        // UPDATED: Include telegram_chat_id
                         return new User(
                             rs.getInt("id"), 
                             rs.getString("username"), 
@@ -133,7 +128,6 @@ public class DatabaseManager {
              return null;
      }
 
-     // === NEW: Link a Telegram Chat ID to a User ===
      public void linkTelegramUser(int userId, String chatId) {
          String sql = "UPDATE users SET telegram_chat_id = ? WHERE id = ?";
          try (Connection conn = this.connect();
@@ -146,7 +140,6 @@ public class DatabaseManager {
          }
      }
 
-     // === NEW: Find users who haven't prayed a specific prayer today ===
      public List<String> getChatIdsForMissingPrayer(String prayerName, LocalDate date) {
         List<String> chatIds = new ArrayList<>();
         String sql = "SELECT telegram_chat_id FROM users " +
@@ -174,35 +167,19 @@ public class DatabaseManager {
      public List<PrayerLog> getPrayersForToday(int userId, LocalDate date){
         List<PrayerLog> todayPrayers = new ArrayList<>();
         String dateString = date.toString();
-        String checkNumOfPrayersAvailable = "SELECT COUNT(*) AS count FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
-        try (Connection conn = this.connect();
-             PreparedStatement pstmt = conn.prepareStatement(checkNumOfPrayersAvailable)){
-                pstmt.setInt(1, userId);
-                pstmt.setString(2, dateString);
-                ResultSet rs = pstmt.executeQuery();
-                if(rs.next() && rs.getInt("count") == 0){
-                    List<String> the5Prayers = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
-                    String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0)";
-                    try (PreparedStatement instmt = conn.prepareStatement(insertPrayers)){
-                        for (String prayer : the5Prayers) {
-                            instmt.setInt(1, userId);
-                            instmt.setString(2, prayer);
-                            instmt.setString(3, dateString);
-                            instmt.executeUpdate();
-                        }
-                    } 
-                }
-        } catch (SQLException e) {
-            System.out.println("Error checking/creating daily prayers: " + e.getMessage());
-            return todayPrayers;
-        }
+        
+        // 1. Try to fetch existing prayers first
         String fetchPrayers = "SELECT * FROM prayer_log WHERE user_id = ? AND prayer_date = ?";
-        try (Connection conn = this.connect();
-             PreparedStatement fetchstmt = conn.prepareStatement(fetchPrayers)){
+        
+        try (Connection conn = this.connect()) {
+            // First pass: check if they exist
+            boolean prayersExist = false;
+            try (PreparedStatement fetchstmt = conn.prepareStatement(fetchPrayers)) {
                 fetchstmt.setInt(1, userId);
                 fetchstmt.setString(2, dateString);
                 ResultSet rs = fetchstmt.executeQuery();
                 while (rs.next()) {
+                    prayersExist = true;
                     PrayerLog prayerlog = new PrayerLog();
                     prayerlog.setId(rs.getInt("id"));
                     prayerlog.setUserId(rs.getInt("user_id"));
@@ -211,18 +188,44 @@ public class DatabaseManager {
                     prayerlog.setCompleted(rs.getInt("is_completed") == 1);
                     todayPrayers.add(prayerlog);
                 }
+            }
+
+            // 2. If they don't exist, create them safely
+            if (!prayersExist) {
+                List<String> the5Prayers = Arrays.asList("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha");
+                // INSERT OR IGNORE is SQLite specific, but standard INSERT works with our catch block
+                String insertPrayers = "INSERT INTO prayer_log (user_id, prayer_name, prayer_date, is_completed) VALUES (?, ?, ?, 0)";
+                
+                try (PreparedStatement instmt = conn.prepareStatement(insertPrayers)){
+                    for (String prayer : the5Prayers) {
+                        try {
+                            instmt.setInt(1, userId);
+                            instmt.setString(2, prayer);
+                            instmt.setString(3, dateString);
+                            instmt.executeUpdate();
+                        } catch (SQLException ex) {
+                            // Ignore duplicate errors silently
+                        }
+                    }
+                }
+                // Recursively fetch them again now that they are created
+                return getPrayersForToday(userId, date); 
+            }
+
         } catch (SQLException e) {
-            System.out.println("Coudn't fetch for today's prayers: " + e.getMessage());
+            System.out.println("Error managing daily prayers: " + e.getMessage());
         }
         return todayPrayers;
      }
 
-     public void markPrayerAsCompleted(int prayerLogId, int userId){
-        String updateCompletion = "UPDATE prayer_log SET is_completed = 1 WHERE id = ? AND user_id = ?";
+     // === UPDATED: Allows setting status to TRUE (1) or FALSE (0) ===
+     public void updatePrayerStatus(int prayerLogId, int userId, boolean isCompleted){
+        String sql = "UPDATE prayer_log SET is_completed = ? WHERE id = ? AND user_id = ?";
         try (Connection conn = this.connect();
-             PreparedStatement updstmt = conn.prepareStatement(updateCompletion)){
-                updstmt.setInt(1, prayerLogId);
-                updstmt.setInt(2, userId);
+             PreparedStatement updstmt = conn.prepareStatement(sql)){
+                updstmt.setInt(1, isCompleted ? 1 : 0);
+                updstmt.setInt(2, prayerLogId);
+                updstmt.setInt(3, userId);
                 updstmt.executeUpdate();
         } catch (SQLException e) {
             System.out.println(e.getMessage());

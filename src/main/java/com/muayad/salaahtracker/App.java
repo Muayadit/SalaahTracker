@@ -70,7 +70,8 @@ public class App {
             ctx.contentType("application/json");
         });
 
-        app.put("/api/prayers/complete/{id}", ctx -> {
+        // --- UPDATED: Toggle Prayer Status (Complete/Undo) ---
+        app.put("/api/prayers/{id}", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser == null) {
                 ctx.status(403);
@@ -80,9 +81,11 @@ public class App {
             }
             try {
                 int prayerLogId = Integer.parseInt(ctx.pathParam("id"));
-                int userId = currentUser.getId();
-                dbManager.markPrayerAsCompleted(prayerLogId, userId);
-                ctx.result("{\"status\":\"success\", \"message\":\"Prayer marked as complete\"}");
+                // Read the desired status (true/false) from the URL
+                boolean isCompleted = Boolean.parseBoolean(ctx.queryParam("completed"));
+                
+                dbManager.updatePrayerStatus(prayerLogId, currentUser.getId(), isCompleted);
+                ctx.result("{\"status\":\"success\", \"message\":\"Prayer status updated\"}");
                 ctx.contentType("application/json");
             } catch (NumberFormatException e) {
                 ctx.status(400);
@@ -176,7 +179,6 @@ public class App {
                 return;
             }
 
-            // 1. Get Prayer Times (Cached)
             Map<String, LocalTime> timings = prayerService.getPrayerTimes(city, country);
             
             if (timings == null) {
@@ -185,16 +187,12 @@ public class App {
             }
 
             StringBuilder log = new StringBuilder();
-
-            // 2. Exact Milestones to check (Must enable 1-minute cron job)
             int[] milestones = {20, 10, 5};
 
             for (int minutes : milestones) {
-                // Check if ANY prayer is EXACTLY 'minutes' away
                 String upcomingPrayer = prayerService.getUpcomingPrayerName(timings, minutes);
 
                 if (upcomingPrayer != null) {
-                    // Determine which prayer we should have already prayed (The PREVIOUS one)
                     String prayerToCheck = "";
                     switch (upcomingPrayer) {
                         case "Dhuhr": prayerToCheck = "Fajr"; break;
@@ -209,7 +207,6 @@ public class App {
                         
                         for (String chatId : chatIds) {
                             String msg = "";
-                            
                             if (minutes == 20) {
                                 msg = "ℹ️ REMINDER: " + upcomingPrayer + " starts in exactly 20 mins.\n" +
                                       "Have you prayed " + prayerToCheck + " yet?";

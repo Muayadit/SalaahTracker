@@ -1,4 +1,6 @@
 com\muayad\salaahtracker\PrayerLog.class
+com\muayad\salaahtracker\PrayerTimesService.class
 com\muayad\salaahtracker\User.class
 com\muayad\salaahtracker\App.class
 com\muayad\salaahtracker\DatabaseManager.class
+com\muayad\salaahtracker\TelegramBot.class
