@@ -25,20 +25,26 @@ public class DatabaseManager {
     public Connection connect() {
         Connection conn = null;
         try {
+            // FIX 1: Explicitly load the SQLite driver class
+            // This forces the app to find the driver, even if the IDE is being stubborn.
+            Class.forName("org.sqlite.JDBC"); 
+            
             conn = DriverManager.getConnection(getDatabaseUrl());
+        } catch (ClassNotFoundException e) {
+            System.out.println("Driver Error: SQLite library is missing! Run 'mvn clean install'.");
         } catch (SQLException e) {
             System.out.println("Connection Error: " + e.getMessage());
         }
         return conn;
     }
 
-    public void initializeDatabase(){
-        String idType = "SERIAL PRIMARY KEY"; 
+    public void initializeDatabase() {
+        String idType = "SERIAL PRIMARY KEY";
         if (getDatabaseUrl().contains("sqlite")) {
             idType = "INTEGER PRIMARY KEY AUTOINCREMENT";
         }
 
-        // UPDATED: Added telegram_chat_id column
+        // ... (Table Strings remain the same: createUserTable, createPrayerLogTable) ...
         String createUserTable = "CREATE TABLE IF NOT EXISTS users ("
         + " id " + idType + ","
         + " username TEXT UNIQUE NOT NULL,"
@@ -54,15 +60,20 @@ public class DatabaseManager {
         + " is_completed INTEGER NOT NULL DEFAULT 0,"
         + " FOREIGN KEY (user_id) REFERENCES users (id)"
         + " );";
-    
-        try (Connection conn = this.connect();
-                Statement stmt = conn.createStatement()) {
-            stmt.execute(createUserTable);
-            stmt.execute(createPrayerLogTable);
+
+        // FIX 2: Check if conn is null before using it to prevent the crash
+        try (Connection conn = this.connect()) {
+            if (conn != null) {
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(createUserTable);
+                    stmt.execute(createPrayerLogTable);
+                    System.out.println("Database tables checked/created successfully.");
+                }
+            }
         } catch (SQLException e) {
             System.out.println("Init Error: " + e.getMessage());
         }
-     }
+    }
 
      public User searchUser(String username) {
         String sql = "SELECT * FROM users WHERE username = ?";
