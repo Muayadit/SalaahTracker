@@ -62,11 +62,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
-    let currentLang = localStorage.getItem('appLang') || 'en'; // Default to English or saved preference
+    let currentLang = localStorage.getItem('appLang') || 'en'; 
 
     // --- ELEMENTS ---
     const langToggle = document.getElementById("lang-toggle");
-    // ... (Keep all your existing element selectors) ...
     const loginForm = document.getElementById("login-form");
     const loginUsername = document.getElementById("login-username");
     const loginPassword = document.getElementById("login-password");
@@ -97,9 +96,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const prevWeekBtn = document.getElementById("prev-week-btn");
     const nextWeekBtn = document.getElementById("next-week-btn");
     const currentWeekLabel = document.getElementById("current-week-label");
-    const weeklyDayDetails = document.getElementById("weekly-day-details");
-    const weeklySelectedDateTitle = document.getElementById("weekly-selected-date-title");
-    const weeklySelectedDayPrayers = document.getElementById("weekly-selected-day-prayers");
     const viewSettingsButton = document.getElementById("view-settings-button");
     const settingsContainer = document.getElementById("settings-container");
     const backFromSettingsButton = document.getElementById("back-from-settings-button");
@@ -110,6 +106,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let currentWeeklyStartDate = new Date();
     let currentMonthlyDate = new Date(); 
+
+    // --- 1. AUTO LOGIN CHECK ---
+    function checkSession() {
+        fetch("/api/auth/status")
+        .then(response => {
+            if (response.ok) return response.json();
+            throw new Error("Not logged in");
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                authContainer.classList.add("hidden");
+                appContainer.classList.remove("hidden");
+                const t = translations[currentLang];
+                welcomeMessage.textContent = `${t.welcome}, ${data.username}!`;
+                loadPrayers();
+            }
+        })
+        .catch(() => {
+            // Do nothing, stay on login screen
+        });
+    }
+
+    // Call on Load
+    checkSession();
 
     // --- LANGUAGE FUNCTION ---
     function setLanguage(lang) {
@@ -125,37 +145,66 @@ document.addEventListener("DOMContentLoaded", () => {
             langToggle.textContent = "العربية";
         }
 
-        // Update all elements with data-i18n attribute
         document.querySelectorAll('[data-i18n]').forEach(el => {
             const key = el.getAttribute('data-i18n');
-            if (translations[lang][key]) {
-                el.innerHTML = translations[lang][key];
-            }
+            if (translations[lang][key]) el.innerHTML = translations[lang][key];
         });
 
-        // Update placeholders
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
             const key = el.getAttribute('data-i18n-placeholder');
-            if (translations[lang][key]) {
-                el.placeholder = translations[lang][key];
-            }
+            if (translations[lang][key]) el.placeholder = translations[lang][key];
         });
 
-        // Refresh views if they are visible
         if (!appContainer.classList.contains('hidden')) loadPrayers();
         if (!summaryContainer.classList.contains('hidden')) updateMonthlyView();
         if (!weeklyContainer.classList.contains('hidden')) updateWeeklyView();
     }
 
-    // Initialize Language
     setLanguage(currentLang);
 
     langToggle.addEventListener("click", () => {
         setLanguage(currentLang === 'en' ? 'ar' : 'en');
     });
 
+    // --- SHARED HELPER TO RENDER LISTS ---
+    function renderPrayerCheckboxes(container, prayers) {
+        container.innerHTML = "";
+        prayers.forEach(prayer => {
+            const prayerElement = document.createElement("div");
+            prayerElement.classList.add("prayer-item");
+            
+            const t = translations[currentLang];
+            const displayName = t.prayers[prayer.prayerName] || prayer.prayerName;
 
-    // --- SHARED FUNCTIONS ---
+            const prayerName = document.createElement("span");
+            prayerName.textContent = displayName;
+            
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = prayer.completed;
+            checkbox.dataset.prayerId = prayer.id;
+
+            checkbox.addEventListener('change', () => {
+                const prayerId = checkbox.dataset.prayerId;
+                const isChecked = checkbox.checked;
+                
+                fetch(`/api/prayers/${prayerId}?completed=${isChecked}`, { method: "PUT" })
+                .then(response => {
+                    if (!response.ok) throw new Error("Update failed");
+                    return response.json();
+                })
+                .then(data => console.log("Success:", data.message))
+                .catch(err => {
+                    console.error(err);
+                    checkbox.checked = !isChecked; 
+                });
+            });
+            
+            prayerElement.appendChild(checkbox);
+            prayerElement.appendChild(prayerName);
+            container.appendChild(prayerElement);
+        });
+    }
 
     function loadPrayers() {
         prayerList.innerHTML = "";
@@ -165,45 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return response.json();
             })
             .then(prayers => {
-                prayers.forEach(prayer => {
-                    const prayerElement = document.createElement("div");
-                    prayerElement.classList.add("prayer-item");
-                    
-                    // Translate prayer name
-                    const t = translations[currentLang];
-                    const displayName = t.prayers[prayer.prayerName] || prayer.prayerName;
-
-                    const prayerName = document.createElement("span");
-                    prayerName.textContent = displayName;
-                    
-                    const checkbox = document.createElement("input");
-                    checkbox.type = "checkbox";
-                    checkbox.checked = prayer.completed;
-                    checkbox.dataset.prayerId = prayer.id;
-
-                    // DISABLED LOGIC REMOVED FOR UNDO SUPPORT
-
-                    checkbox.addEventListener('change', () => {
-                        const prayerId = checkbox.dataset.prayerId;
-                        const isChecked = checkbox.checked; // Capture true or false
-                        
-                        // Send PUT request with the new status
-                        fetch(`/api/prayers/${prayerId}?completed=${isChecked}`, { method: "PUT" })
-                        .then(response => {
-                            if (!response.ok) throw new Error("Update failed");
-                            return response.json();
-                        })
-                        .then(data => console.log("Success:", data.message))
-                        .catch(err => {
-                            console.error(err);
-                            checkbox.checked = !isChecked; // Revert checkbox if fail
-                        });
-                    });
-                    
-                    prayerElement.appendChild(checkbox);
-                    prayerElement.appendChild(prayerName);
-                    prayerList.appendChild(prayerElement);
-                });
+                renderPrayerCheckboxes(prayerList, prayers);
             })
             .catch(error => {
                 console.error(error);
@@ -219,7 +230,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function formatDateForLabel(date) {
-        // Use 'ar-SA' if arabic, else 'en-US'
         const locale = currentLang === 'ar' ? 'ar-SA' : 'en-US';
         return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
     }
@@ -373,40 +383,35 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             cell.classList.add(statusClass);
-            // Translate digits for Arabic? Optional, usually standard numbers are fine.
             cell.innerHTML = `
                 <div class="day-number">${day}</div>
                 <div class="day-status">${completed}/${total}</div>
             `;
 
+            // --- 2. UPDATED HANDLER: Fetch & Edit Specific Date ---
             cell.addEventListener("click", () => {
-                showDayDetails(dateKey, daysPrayers);
+                showDayDetails(dateKey);
             });
 
             calendarGrid.appendChild(cell);
         }
     }
 
-    function showDayDetails(dateKey, prayers) {
+    function showDayDetails(dateKey) {
         dayDetails.classList.remove("hidden");
         const t = translations[currentLang];
         selectedDateTitle.textContent = `${t.details}: ${dateKey}`;
-        selectedDayPrayers.innerHTML = "";
+        selectedDayPrayers.innerHTML = `<p>${t.loading}</p>`;
 
-        if (prayers.length === 0) {
-            selectedDayPrayers.innerHTML = `<p>${t.no_data}</p>`;
-            return;
-        }
-
-        prayers.forEach(p => {
-            const pDiv = document.createElement("div");
-            const icon = p.completed ? "✅" : "❌";
-            const displayName = t.prayers[p.prayerName] || p.prayerName;
-            
-            pDiv.textContent = `${displayName}: ${icon}`;
-            pDiv.style.color = p.completed ? "green" : "red";
-            selectedDayPrayers.appendChild(pDiv);
-        });
+        // Fetch missing days (creates them if needed)
+        fetch(`/api/prayers/date/${dateKey}`)
+            .then(response => response.json())
+            .then(prayers => {
+                renderPrayerCheckboxes(selectedDayPrayers, prayers);
+            })
+            .catch(err => {
+                selectedDayPrayers.innerHTML = `<p class="error-message">Error loading details.</p>`;
+            });
     }
 
 

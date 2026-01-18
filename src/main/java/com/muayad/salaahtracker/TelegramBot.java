@@ -8,7 +8,7 @@ import java.time.Duration;
 
 public class TelegramBot {
 
-    // SECURE FIX: Read from Environment Variable
+    
     private static final String BOT_TOKEN = System.getenv("TELEGRAM_BOT_TOKEN");
     
     private static final String TELEGRAM_API_URL = "https://api.telegram.org/bot" + BOT_TOKEN;
@@ -32,7 +32,7 @@ public class TelegramBot {
         }
 
         try {
-            // Escape quotes to prevent JSON errors
+            
             String safeText = text.replace("\"", "\\\"").replace("\n", "\\n");
             String jsonPayload = String.format("{\"chat_id\":\"%s\",\"text\":\"%s\"}", chatId, safeText);
 

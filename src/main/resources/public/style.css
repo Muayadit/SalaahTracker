@@ -7,14 +7,14 @@ body {
     padding: 20px;
 }
 
-/* RTL SUPPORT FOR ARABIC */
+
 body.rtl {
     direction: rtl;
     text-align: right;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Better Arabic fonts */
 }
 
-/* Flip arrows for RTL */
+
 body.rtl .week-nav { flex-direction: row-reverse; }
 
 #auth-container, #app-container, #summary-container, #weekly-container, #settings-container {

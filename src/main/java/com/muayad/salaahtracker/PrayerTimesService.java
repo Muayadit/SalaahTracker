@@ -72,13 +72,16 @@ public class PrayerTimesService {
             Map<String, LocalTime> prayerMap = new TreeMap<>();
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
 
-            // Added "Sunrise" here so we can track it!
             prayerMap.put("Fajr", parseTime(timings.getString("Fajr"), formatter));
             prayerMap.put("Sunrise", parseTime(timings.getString("Sunrise"), formatter)); 
             prayerMap.put("Dhuhr", parseTime(timings.getString("Dhuhr"), formatter));
             prayerMap.put("Asr", parseTime(timings.getString("Asr"), formatter));
             prayerMap.put("Maghrib", parseTime(timings.getString("Maghrib"), formatter));
             prayerMap.put("Isha", parseTime(timings.getString("Isha"), formatter));
+            
+            // --- NEW: Midnight Logic Restored ---
+            prayerMap.put("Midnight", LocalTime.of(23, 59)); 
+            // ------------------------------------
 
             // 3. SAVE TO CACHE
             this.cachedTimings = prayerMap;

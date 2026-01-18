@@ -19,6 +19,20 @@ public class App {
         }).start(7070);
 
         // --- AUTH ---
+
+        // 1. AUTO-LOGIN STATUS CHECK
+        app.get("/api/auth/status", ctx -> {
+            User currentUser = ctx.sessionAttribute("currentUser");
+            if (currentUser != null) {
+                ctx.result("{\"status\":\"success\", \"username\":\"" + currentUser.getUsername() + "\"}");
+                ctx.contentType("application/json");
+            } else {
+                ctx.status(401);
+                ctx.result("{\"status\":\"failure\"}");
+                ctx.contentType("application/json");
+            }
+        });
+
         app.post("/api/login", ctx -> {
             String username = ctx.formParam("username");
             String password = ctx.formParam("password");
@@ -56,6 +70,8 @@ public class App {
         });
 
         // --- DATA ---
+        
+        // 2. GET TODAY'S PRAYERS
         app.get("/api/prayers/today", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser == null) {
@@ -70,6 +86,29 @@ public class App {
             ctx.contentType("application/json");
         });
 
+        // 3. GET PAST/FUTURE PRAYERS (For Editing)
+        app.get("/api/prayers/date/{date}", ctx -> {
+            User currentUser = ctx.sessionAttribute("currentUser");
+            if (currentUser == null) {
+                ctx.status(403);
+                ctx.result("{\"status\":\"failure\", \"message\":\"You must be logged in\"}");
+                ctx.contentType("application/json");
+                return;
+            }
+            try {
+                LocalDate requestedDate = LocalDate.parse(ctx.pathParam("date"));
+                List<PrayerLog> datePrayers = dbManager.getPrayersForToday(currentUser.getId(), requestedDate);
+                String jsonResult = serializePrayerList(datePrayers);
+                ctx.result(jsonResult);
+                ctx.contentType("application/json");
+            } catch (Exception e) {
+                ctx.status(400);
+                ctx.result("{\"status\":\"failure\", \"message\":\"Invalid date format\"}");
+                ctx.contentType("application/json");
+            }
+        });
+
+        // 4. UPDATE STATUS
         app.put("/api/prayers/{id}", ctx -> {
             User currentUser = ctx.sessionAttribute("currentUser");
             if (currentUser == null) {
@@ -167,7 +206,7 @@ public class App {
             }
         });
 
-        // --- EXACT MINUTE REMINDERS (UPDATED WITH SUNRISE LOGIC) ---
+        // --- EXACT MINUTE REMINDERS (UPDATED) ---
         app.get("/api/check-reminders", ctx -> {
             String city = ctx.queryParam("city");
             String country = ctx.queryParam("country");
@@ -188,19 +227,19 @@ public class App {
             int[] milestones = {20, 10, 5};
 
             for (int minutes : milestones) {
-                // Check if ANY event (Prayer OR Sunrise) is exactly 'minutes' away
                 String upcomingEvent = prayerService.getUpcomingPrayerName(timings, minutes);
 
                 if (upcomingEvent != null) {
                     String prayerToCheck = "";
                     
-                    // --- ISLAMIC LOGIC UPDATE ---
+                    // --- ISLAMIC LOGIC + MIDNIGHT ---
                     switch (upcomingEvent) {
-                        case "Sunrise": prayerToCheck = "Fajr"; break; // Warning for Fajr is before Sunrise
-                        case "Dhuhr": prayerToCheck = null; break; // No prayer ends exactly at Dhuhr
+                        case "Sunrise": prayerToCheck = "Fajr"; break;
+                        case "Dhuhr": prayerToCheck = null; break;
                         case "Asr": prayerToCheck = "Dhuhr"; break;
                         case "Maghrib": prayerToCheck = "Asr"; break;
                         case "Isha": prayerToCheck = "Maghrib"; break;
+                        case "Midnight": prayerToCheck = "Isha"; break; // RESTORED
                         default: prayerToCheck = null; 
                     }
 
@@ -210,17 +249,20 @@ public class App {
                         for (String chatId : chatIds) {
                             String msg = "";
                             
+                            // Adjust label for Midnight
+                            String timeLabel = upcomingEvent.equals("Midnight") ? "Midnight" : upcomingEvent;
+
                             if (minutes == 20) {
-                                msg = "ℹ️ REMINDER: " + upcomingEvent + " is in exactly 20 mins.\n" +
+                                msg = "ℹ️ REMINDER: " + timeLabel + " is in exactly 20 mins.\n" +
                                       "Have you prayed " + prayerToCheck + " yet?";
                             }
                             else if (minutes == 10) {
                                 msg = "⚠️ WARNING: Time for " + prayerToCheck + " is ending!\n" +
-                                      upcomingEvent + " begins in 10 minutes.";
+                                      timeLabel + " is in 10 minutes.";
                             }
                             else if (minutes == 5) {
                                 msg = "🚨 URGENT: " + prayerToCheck + " will be missed in less than 5 minutes!\n" +
-                                      "Pray before " + upcomingEvent + "!";
+                                      "Pray before " + timeLabel + "!";
                             }
                             
                             bot.sendMessage(chatId, msg);
